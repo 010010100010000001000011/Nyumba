@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "599472126882",
+    "project_id": "nyumba-6d212",
+    "storage_bucket": "nyumba-6d212.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:599472126882:android:002e651228ed58c2fbd0fb",
+        "android_client_info": {
+          "package_name": "com.j01000011.nyumba"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAl_2dszr3Q_VSAxl81EGrEYDkUNSBpDpQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
