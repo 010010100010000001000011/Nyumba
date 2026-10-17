@@ -13,14 +13,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.j01000011.nyumba.core.navigation.Screen
 import com.j01000011.nyumba.domain.model.UserRole
 import com.j01000011.nyumba.presentation.auth.AuthViewModel
 import kotlinx.coroutines.delay
 
 @Composable
 fun SplashScreen(
-    onNavigateToLogin: () -> Unit,
+    onNavigateToLanding: () -> Unit,
     onNavigateToTenantDashboard: () -> Unit,
     onNavigateToLandlordDashboard: () -> Unit,
     viewModel: AuthViewModel = hiltViewModel()
@@ -28,14 +27,14 @@ fun SplashScreen(
     val currentUser by viewModel.currentUser.collectAsState()
 
     LaunchedEffect(currentUser) {
-        delay(2000) // Artificial delay for splash feel
+        delay(1500) // Artificial delay for splash feel
         if (currentUser == null) {
-            onNavigateToLogin()
+            onNavigateToLanding()
         } else {
             when (currentUser?.role) {
                 UserRole.TENANT -> onNavigateToTenantDashboard()
                 UserRole.LANDLORD -> onNavigateToLandlordDashboard()
-                else -> onNavigateToLogin()
+                else -> onNavigateToLanding()
             }
         }
     }

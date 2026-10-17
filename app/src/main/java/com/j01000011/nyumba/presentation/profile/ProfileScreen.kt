@@ -97,8 +97,13 @@ fun ProfileScreen(
             
             Button(
                 onClick = {
-                    viewModel.logout()
-                    onLogout()
+                    try {
+                        viewModel.logout()
+                    } catch (_: Exception) {
+                        // Exception caught gracefully
+                    } finally {
+                        onLogout()
+                    }
                 },
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)

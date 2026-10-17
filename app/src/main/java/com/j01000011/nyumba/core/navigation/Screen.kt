@@ -2,8 +2,13 @@ package com.j01000011.nyumba.core.navigation
 
 sealed class Screen(val route: String) {
     object Splash : Screen("splash")
-    object Login : Screen("login")
-    object Register : Screen("register")
+    object Landing : Screen("landing")
+    object Login : Screen("login?role={role}") {
+        fun createRoute(role: String? = null) = if (role != null) "login?role=$role" else "login"
+    }
+    object Register : Screen("register?role={role}") {
+        fun createRoute(role: String? = null) = if (role != null) "register?role=$role" else "register"
+    }
     object TenantDashboard : Screen("tenant_dashboard")
     object LandlordDashboard : Screen("landlord_dashboard")
     
@@ -56,6 +61,10 @@ sealed class Screen(val route: String) {
     }
 
     // Tenant specific
+    object BoardingHouseDiscovery : Screen("boarding_house_discovery")
+    object HouseRoomsDiscovery : Screen("house_rooms_discovery/{houseId}") {
+        fun createRoute(houseId: String) = "house_rooms_discovery/$houseId"
+    }
     object RoomDiscovery : Screen("room_discovery")
     object RoomDetails : Screen("room_details/{roomId}") {
         fun createRoute(roomId: String) = "room_details/$roomId"

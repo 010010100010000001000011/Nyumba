@@ -23,7 +23,7 @@ interface RoomRepository {
         holdDurationMs: Long
     ): Result<String>
     suspend fun updateRoomRequestStatus(requestId: String, status: String): Result<Unit>
-    suspend fun approveRoomRequest(requestId: String): Result<Unit>
+    suspend fun approveRoomRequest(requestId: String, paymentDueDay: Int = 1): Result<Unit>
     suspend fun cleanupExpiredHolds(): Result<Int>
     suspend fun changeTenantRoom(tenantId: String, oldRoomId: String?, newRoomId: String): Result<Unit>
 }

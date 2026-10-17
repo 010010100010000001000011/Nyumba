@@ -12,7 +12,8 @@ import com.j01000011.nyumba.domain.model.UserRole
 
 @Composable
 fun LoginScreen(
-    onNavigateToRegister: () -> Unit,
+    initialRole: UserRole? = null,
+    onNavigateToRegister: (UserRole?) -> Unit,
     onLoginSuccess: (UserRole) -> Unit,
     viewModel: AuthViewModel = hiltViewModel()
 ) {
@@ -27,6 +28,12 @@ fun LoginScreen(
         }
     }
 
+    val titleText = when (initialRole) {
+        UserRole.LANDLORD -> "Landlord Login"
+        UserRole.TENANT -> "Tenant Login"
+        null -> "Nyumba Login"
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -34,7 +41,7 @@ fun LoginScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Text(text = "Nyumba Login", style = MaterialTheme.typography.headlineMedium)
+        Text(text = titleText, style = MaterialTheme.typography.headlineMedium)
         Spacer(modifier = Modifier.height(32.dp))
 
         OutlinedTextField(
@@ -65,7 +72,7 @@ fun LoginScreen(
             }
         }
 
-        TextButton(onClick = onNavigateToRegister) {
+        TextButton(onClick = { onNavigateToRegister(initialRole) }) {
             Text("Don't have an account? Register")
         }
 

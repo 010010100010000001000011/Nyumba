@@ -29,6 +29,7 @@ import com.j01000011.nyumba.core.navigation.Screen
 import com.j01000011.nyumba.domain.model.UserRole
 import com.j01000011.nyumba.presentation.auth.LoginScreen
 import com.j01000011.nyumba.presentation.auth.RegisterScreen
+import com.j01000011.nyumba.presentation.landing.LandingScreen
 import com.j01000011.nyumba.presentation.landlord.*
 import com.j01000011.nyumba.presentation.rooms.*
 import com.j01000011.nyumba.presentation.splash.SplashScreen
@@ -92,6 +93,22 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun NyumbaAppContent(imageStorageService: ImageStorageService) {
     val navController = rememberNavController()
+
+    val performLogout: () -> Unit = {
+        try {
+            navController.navigate(Screen.Landing.route) {
+                popUpTo(0) { inclusive = true }
+                launchSingleTop = true
+            }
+        } catch (_: Exception) {
+            try {
+                navController.navigate(Screen.Landing.route)
+            } catch (_: Exception) {
+                // Fallback catch
+            }
+        }
+    }
+
     Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
         NavHost(
             navController = navController,
@@ -100,8 +117,8 @@ fun NyumbaAppContent(imageStorageService: ImageStorageService) {
         ) {
             composable(Screen.Splash.route) {
                 SplashScreen(
-                    onNavigateToLogin = {
-                        navController.navigate(Screen.Login.route) {
+                    onNavigateToLanding = {
+                        navController.navigate(Screen.Landing.route) {
                             popUpTo(Screen.Splash.route) { inclusive = true }
                         }
                     },
@@ -117,10 +134,36 @@ fun NyumbaAppContent(imageStorageService: ImageStorageService) {
                     }
                 )
             }
-            composable(Screen.Login.route) {
+            composable(Screen.Landing.route) {
+                LandingScreen(
+                    onNavigateToLandlord = {
+                        navController.navigate(Screen.Login.createRoute("LANDLORD"))
+                    },
+                    onNavigateToTenant = {
+                        navController.navigate(Screen.Login.createRoute("TENANT"))
+                    }
+                )
+            }
+            composable(
+                route = Screen.Login.route,
+                arguments = listOf(
+                    navArgument("role") {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    }
+                )
+            ) { backStackEntry ->
+                val roleStr = backStackEntry.arguments?.getString("role")
+                val initialRole = when (roleStr?.uppercase()) {
+                    "LANDLORD" -> UserRole.LANDLORD
+                    "TENANT" -> UserRole.TENANT
+                    else -> null
+                }
                 LoginScreen(
-                    onNavigateToRegister = {
-                        navController.navigate(Screen.Register.route)
+                    initialRole = initialRole,
+                    onNavigateToRegister = { role ->
+                        navController.navigate(Screen.Register.createRoute(role?.name))
                     },
                     onLoginSuccess = { role ->
                         val route = when (role) {
@@ -133,10 +176,28 @@ fun NyumbaAppContent(imageStorageService: ImageStorageService) {
                     }
                 )
             }
-            composable(Screen.Register.route) {
+            composable(
+                route = Screen.Register.route,
+                arguments = listOf(
+                    navArgument("role") {
+                        type = NavType.StringType
+                        nullable = true
+                        defaultValue = null
+                    }
+                )
+            ) { backStackEntry ->
+                val roleStr = backStackEntry.arguments?.getString("role")
+                val initialRole = when (roleStr?.uppercase()) {
+                    "LANDLORD" -> UserRole.LANDLORD
+                    "TENANT" -> UserRole.TENANT
+                    else -> UserRole.TENANT
+                }
                 RegisterScreen(
-                    onNavigateToLogin = {
-                        navController.popBackStack()
+                    initialRole = initialRole,
+                    onNavigateToLogin = { role ->
+                        navController.navigate(Screen.Login.createRoute(role?.name)) {
+                            popUpTo(Screen.Register.route) { inclusive = true }
+                        }
                     },
                     onRegisterSuccess = { role ->
                         val route = when (role) {
@@ -151,12 +212,8 @@ fun NyumbaAppContent(imageStorageService: ImageStorageService) {
             }
             composable(Screen.TenantDashboard.route) {
                 TenantDashboardScreen(
-                    onLogout = {
-                        navController.navigate(Screen.Login.route) {
-                            popUpTo(0) { inclusive = true }
-                        }
-                    },
-                    onNavigateToRoomDiscovery = { navController.navigate(Screen.RoomDiscovery.route) },
+                    onLogout = performLogout,
+                    onNavigateToRoomDiscovery = { navController.navigate(Screen.BoardingHouseDiscovery.route) },
                     onNavigateToNotifications = { navController.navigate(Screen.Notifications.route) },
                     onNavigateToRent = { navController.navigate(Screen.RentDetails.route) },
                     onNavigateToReceipts = { navController.navigate(Screen.MyReceipts.route) },
@@ -169,11 +226,7 @@ fun NyumbaAppContent(imageStorageService: ImageStorageService) {
             }
             composable(Screen.LandlordDashboard.route) {
                 LandlordDashboardScreen(
-                    onLogout = {
-                        navController.navigate(Screen.Login.route) {
-                            popUpTo(0) { inclusive = true }
-                        }
-                    },
+                    onLogout = performLogout,
                     onNavigateToRooms = { houseId: String -> navController.navigate(Screen.RoomManagement.createRoute(houseId)) },
                     onNavigateToAddBoardingHouse = { navController.navigate(Screen.AddBoardingHouse.route) },
                     onNavigateToEditHouse = { houseId: String -> navController.navigate(Screen.EditBoardingHouse.createRoute(houseId)) },
@@ -239,6 +292,29 @@ fun NyumbaAppContent(imageStorageService: ImageStorageService) {
             ) { backStackEntry ->
                 val houseId = backStackEntry.arguments?.getString("houseId") ?: ""
                 RoomRequestsScreen(houseId = houseId, onNavigateBack = { navController.popBackStack() })
+            }
+
+            composable(Screen.BoardingHouseDiscovery.route) {
+                BoardingHouseDiscoveryScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    onHouseSelected = { houseId: String ->
+                        navController.navigate(Screen.HouseRoomsDiscovery.createRoute(houseId))
+                    }
+                )
+            }
+
+            composable(
+                route = Screen.HouseRoomsDiscovery.route,
+                arguments = listOf(navArgument("houseId") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val houseId = backStackEntry.arguments?.getString("houseId") ?: ""
+                HouseRoomsDiscoveryScreen(
+                    houseId = houseId,
+                    onNavigateBack = { navController.popBackStack() },
+                    onRoomSelected = { roomId: String ->
+                        navController.navigate(Screen.RoomDetails.createRoute(roomId))
+                    }
+                )
             }
 
             composable(Screen.RoomDiscovery.route) {
@@ -427,11 +503,7 @@ fun NyumbaAppContent(imageStorageService: ImageStorageService) {
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateToGallery = { navController.navigate(Screen.Gallery.route) },
                     onNavigateToSettings = { navController.navigate(Screen.Settings.route) },
-                    onLogout = {
-                        navController.navigate(Screen.Login.route) {
-                            popUpTo(0) { inclusive = true }
-                        }
-                    }
+                    onLogout = performLogout
                 )
             }
 

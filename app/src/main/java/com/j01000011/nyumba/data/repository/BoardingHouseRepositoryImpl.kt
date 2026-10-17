@@ -31,6 +31,21 @@ class BoardingHouseRepositoryImpl @Inject constructor(
         awaitClose { subscription.remove() }
     }
 
+    override fun getAllBoardingHouses(): Flow<List<BoardingHouse>> = callbackFlow {
+        val subscription = firestore.collection("boardingHouses")
+            .addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    close(error)
+                    return@addSnapshotListener
+                }
+                if (snapshot != null) {
+                    val houses = snapshot.toObjects(BoardingHouse::class.java)
+                    trySend(houses)
+                }
+            }
+        awaitClose { subscription.remove() }
+    }
+
     override suspend fun createBoardingHouse(house: BoardingHouse): Result<String> {
         return try {
             val docRef = firestore.collection("boardingHouses").document()

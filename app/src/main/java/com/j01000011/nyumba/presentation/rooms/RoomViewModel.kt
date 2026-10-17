@@ -149,10 +149,10 @@ class RoomViewModel @Inject constructor(
         }
     }
 
-    fun approveRequest(requestId: String) {
+    fun approveRequest(requestId: String, paymentDueDay: Int = 1) {
         viewModelScope.launch {
             _roomState.value = RoomUiState.Loading
-            roomRepository.approveRoomRequest(requestId)
+            roomRepository.approveRoomRequest(requestId, paymentDueDay)
                 .onSuccess { _roomState.value = RoomUiState.Success }
                 .onFailure { _roomState.value = RoomUiState.Error(it.message ?: "Approval failed") }
         }

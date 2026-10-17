@@ -84,14 +84,15 @@ fun RentDetailsScreen(
 
 @Composable
 fun SummaryCard(periods: List<RentPeriod>) {
-    val totalDue = periods.filter { it.status != RentStatus.PAID && it.status != RentStatus.ADVANCE_PAID }.sumOf { it.amountDue - it.amountPaid }
+    val currentOrPastPeriods = periods.filter { it.isCurrentOrPastDue }
+    val totalDue = currentOrPastPeriods.filter { it.status != RentStatus.PAID && it.status != RentStatus.ADVANCE_PAID }.sumOf { maxOf(0.0, it.amountDue - it.amountPaid) }
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text("Outstanding Balance", style = MaterialTheme.typography.titleMedium)
-            Text("K${String.format("%.2f", totalDue)}", style = MaterialTheme.typography.headlineLarge)
+            Text("K${String.format(Locale.getDefault(), "%.2f", totalDue)}", style = MaterialTheme.typography.headlineLarge)
         }
     }
 }

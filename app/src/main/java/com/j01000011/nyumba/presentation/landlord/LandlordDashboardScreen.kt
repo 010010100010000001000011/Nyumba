@@ -5,9 +5,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Announcement
 import androidx.compose.material.icons.automirrored.filled.Assignment
 import androidx.compose.material.icons.automirrored.filled.Chat
-import androidx.compose.material.icons.automirrored.filled.Announcement
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -18,9 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.j01000011.nyumba.domain.model.BoardingHouse
-import com.j01000011.nyumba.domain.model.Payment
 import com.j01000011.nyumba.presentation.auth.AuthViewModel
-import java.text.SimpleDateFormat
 import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -80,6 +79,17 @@ fun LandlordDashboardScreen(
                     }
                     IconButton(onClick = { showSwitcher = true }) {
                         Icon(Icons.Default.SwapHoriz, contentDescription = "Switch House")
+                    }
+                    IconButton(onClick = {
+                        try {
+                            authViewModel.logout()
+                        } catch (_: Exception) {
+                            // Handle exception gracefully
+                        } finally {
+                            onLogout()
+                        }
+                    }) {
+                        Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = "Logout")
                     }
                 }
             )
@@ -214,16 +224,7 @@ fun LandlordDashboardScreen(
                     }
                 }
 
-                if (stats.recentPayments.isNotEmpty()) {
-                    item {
-                        Spacer(modifier = Modifier.height(24.dp))
-                        Text("Recent Payments", style = MaterialTheme.typography.titleMedium)
-                        Spacer(modifier = Modifier.height(8.dp))
-                    }
-                    items(stats.recentPayments) { payment ->
-                        RecentPaymentItem(payment)
-                    }
-                }
+
                 
                 item {
                     Spacer(modifier = Modifier.height(24.dp))
@@ -268,19 +269,7 @@ fun LandlordDashboardScreen(
     }
 }
 
-@Composable
-fun RecentPaymentItem(payment: Payment) {
-    val dateStr = SimpleDateFormat("dd MMM, HH:mm", Locale.getDefault()).format(Date(payment.paymentDate))
-    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-        Row(modifier = Modifier.padding(12.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Column {
-                Text("K${payment.amount}", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
-                Text(dateStr, style = MaterialTheme.typography.bodySmall)
-            }
-            Text(payment.paymentMethod.name, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
-        }
-    }
-}
+
 
 @Composable
 fun FinancialOverviewCard(stats: com.j01000011.nyumba.presentation.landlord.DashboardStats) {
@@ -294,11 +283,11 @@ fun FinancialOverviewCard(stats: com.j01000011.nyumba.presentation.landlord.Dash
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Column {
                     Text("Collected", style = MaterialTheme.typography.labelSmall)
-                    Text("K${String.format(Locale.getDefault(), "%.2f", stats.rentCollected)}", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    Text("K${"%.2f".format(stats.rentCollected)}", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     Text("Outstanding", style = MaterialTheme.typography.labelSmall)
-                    Text("K${String.format(Locale.getDefault(), "%.2f", stats.outstandingRent)}", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                    Text("K${"%.2f".format(stats.outstandingRent)}", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
                 }
             }
             Spacer(modifier = Modifier.height(8.dp))

@@ -231,7 +231,7 @@ class RoomRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun approveRoomRequest(requestId: String): Result<Unit> {
+    override suspend fun approveRoomRequest(requestId: String, paymentDueDay: Int): Result<Unit> {
         return try {
             val roomRequest = firestore.runTransaction { transaction ->
                 val requestRef = firestore.collection("roomRequests").document(requestId)
@@ -267,7 +267,7 @@ class RoomRepositoryImpl @Inject constructor(
                     "currentRoomId", request.roomId, 
                     "boardingHouseId", request.boardingHouseId,
                     "monthlyRent", room.monthlyRent,
-                    "paymentDueDay", 1
+                    "paymentDueDay", paymentDueDay
                 )
                 
                 request

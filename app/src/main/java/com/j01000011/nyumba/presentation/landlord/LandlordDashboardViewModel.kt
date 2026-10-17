@@ -68,7 +68,8 @@ class LandlordDashboardViewModel @Inject constructor(
                 val overdueComp = complaints.count { it.status == ComplaintStatus.OVERDUE }
                 
                 val collected = rentPeriods.sumOf { it.amountPaid }
-                val outstanding = rentPeriods.sumOf { maxOf(0.0, it.amountDue - it.amountPaid) }
+                val currentOrPastPeriods = rentPeriods.filter { it.isCurrentOrPastDue }
+                val outstanding = currentOrPastPeriods.sumOf { maxOf(0.0, it.amountDue - it.amountPaid) }
                 
                 val advanceTenants = rentPeriods.filter { it.status == RentStatus.ADVANCE_PAID }
                     .map { it.tenantId }.distinct().size

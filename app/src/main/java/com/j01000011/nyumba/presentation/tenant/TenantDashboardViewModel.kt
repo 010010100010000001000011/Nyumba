@@ -45,7 +45,8 @@ class TenantDashboardViewModel @Inject constructor(
                 val current = sortedPeriods.find { it.dueDate <= now && it.status != RentStatus.PAID && it.status != RentStatus.ADVANCE_PAID } 
                     ?: sortedPeriods.firstOrNull { it.status == RentStatus.UNPAID || it.status == RentStatus.PARTIALLY_PAID || it.status == RentStatus.OVERDUE }
 
-                val outstanding = sortedPeriods.sumOf { maxOf(0.0, it.amountDue - it.amountPaid) }
+                val currentOrPastPeriods = sortedPeriods.filter { it.isCurrentOrPastDue }
+                val outstanding = currentOrPastPeriods.sumOf { maxOf(0.0, it.amountDue - it.amountPaid) }
                 val advanceCount = sortedPeriods.count { it.status == RentStatus.ADVANCE_PAID }
                 val nextUnpaid = sortedPeriods.firstOrNull { it.status == RentStatus.UNPAID || it.status == RentStatus.PARTIALLY_PAID }
                 

@@ -14,7 +14,8 @@ import com.j01000011.nyumba.domain.model.UserRole
 
 @Composable
 fun RegisterScreen(
-    onNavigateToLogin: () -> Unit,
+    initialRole: UserRole = UserRole.TENANT,
+    onNavigateToLogin: (UserRole?) -> Unit,
     onRegisterSuccess: (UserRole) -> Unit,
     viewModel: AuthViewModel = hiltViewModel()
 ) {
@@ -25,7 +26,7 @@ fun RegisterScreen(
     var identificationNumber by remember { mutableStateOf("") }
     var emergencyContactName by remember { mutableStateOf("") }
     var emergencyContactPhone by remember { mutableStateOf("") }
-    var selectedRole by remember { mutableStateOf(UserRole.TENANT) }
+    var selectedRole by remember { mutableStateOf(initialRole) }
     val authState by viewModel.authState.collectAsState()
 
     LaunchedEffect(authState) {
@@ -33,6 +34,11 @@ fun RegisterScreen(
             onRegisterSuccess((authState as AuthState.Success).user.role)
             viewModel.clearState()
         }
+    }
+
+    val titleText = when (selectedRole) {
+        UserRole.LANDLORD -> "Create Landlord Account"
+        UserRole.TENANT -> "Create Tenant Account"
     }
 
     Column(
@@ -43,7 +49,7 @@ fun RegisterScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Text(text = "Create Nyumba Account", style = MaterialTheme.typography.headlineMedium)
+        Text(text = titleText, style = MaterialTheme.typography.headlineMedium)
         Spacer(modifier = Modifier.height(32.dp))
 
         OutlinedTextField(
@@ -144,7 +150,7 @@ fun RegisterScreen(
             }
         }
 
-        TextButton(onClick = onNavigateToLogin) {
+        TextButton(onClick = { onNavigateToLogin(selectedRole) }) {
             Text("Already have an account? Login")
         }
 

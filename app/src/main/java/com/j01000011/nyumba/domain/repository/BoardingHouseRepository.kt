@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.Flow
 
 interface BoardingHouseRepository {
     fun getBoardingHouses(landlordId: String): Flow<List<BoardingHouse>>
+    fun getAllBoardingHouses(): Flow<List<BoardingHouse>>
     suspend fun createBoardingHouse(house: BoardingHouse): Result<String>
     suspend fun updateBoardingHouse(house: BoardingHouse): Result<Unit>
     suspend fun getBoardingHouseById(houseId: String): Result<BoardingHouse>

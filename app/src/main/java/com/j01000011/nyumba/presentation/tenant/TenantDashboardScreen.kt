@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.Message
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.*
@@ -57,6 +58,17 @@ fun TenantDashboardScreen(
                     IconButton(onClick = onNavigateToProfile) {
                         Icon(Icons.Default.AccountCircle, contentDescription = "Profile")
                     }
+                    IconButton(onClick = {
+                        try {
+                            authViewModel.logout()
+                        } catch (_: Exception) {
+                            // Handle exception gracefully
+                        } finally {
+                            onLogout()
+                        }
+                    }) {
+                        Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = "Logout")
+                    }
                 }
             )
         }
@@ -89,7 +101,7 @@ fun TenantDashboardScreen(
                                 onClick = onNavigateToRoomDiscovery,
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text("Find a Room")
+                                Text("Find a Boarding House")
                             }
                         }
                     }
