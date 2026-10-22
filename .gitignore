@@ -17,3 +17,5 @@ local.properties
 # API collections / secrets
 *.postman_collection.json
 *.postman_environment.json
+firestore-debug.log
+firebase-debug.log
