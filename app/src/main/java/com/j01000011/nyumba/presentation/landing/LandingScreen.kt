@@ -1,52 +1,56 @@
 package com.j01000011.nyumba.presentation.landing
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Apartment
 import androidx.compose.material.icons.filled.HomeWork
 import androidx.compose.material.icons.filled.Key
+import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
+import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.j01000011.nyumba.R
+import com.j01000011.nyumba.ui.theme.BrandGold
+import com.j01000011.nyumba.ui.theme.HeroGradientStart
 
 @Composable
 fun LandingScreen(
     onNavigateToLandlord: () -> Unit,
     onNavigateToTenant: () -> Unit
 ) {
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
         Image(
             painter = painterResource(id = R.drawable.landingpage_background_image),
-            contentDescription = "Background Image",
+            contentDescription = null,
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Crop
         )
-
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Black.copy(alpha = 0.70f),
-                            Color.Black.copy(alpha = 0.85f),
-                            Color.Black.copy(alpha = 0.95f)
-                        )
+                        0f to Color.Black.copy(alpha = 0.35f),
+                        0.45f to HeroGradientStart.copy(alpha = 0.75f),
+                        1f to Color(0xFF041F19)
                     )
                 )
         )
@@ -54,171 +58,123 @@ fun LandingScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .statusBarsPadding()
-                .navigationBarsPadding()
-                .padding(horizontal = 24.dp, vertical = 16.dp)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.SpaceBetween
+                .systemBarsPadding()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp, vertical = 20.dp)
         ) {
-            // Header Bar
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp),
-                horizontalArrangement = Arrangement.Start,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Apartment,
-                        contentDescription = "Logo",
-                        tint = Color(0xFFFFD700),
-                        modifier = Modifier.size(36.dp)
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column {
-                        Text(
-                            text = "Nyumba",
-                            color = Color(0xFFFFD700),
-                            fontSize = 24.sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Serif
-                        )
-                        Text(
-                            text = "Apartment Management, Simplified",
-                            color = Color.White.copy(alpha = 0.8f),
-                            fontSize = 11.sp
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(48.dp))
-
-            // Main Hero Text
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    text = "Your properties. Your tenants.",
-                    color = Color.White,
-                    fontSize = 32.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = FontFamily.Serif,
-                    textAlign = TextAlign.Center
-                )
-                Text(
-                    text = "Zero spreadsheet chaos.",
-                    color = Color(0xFFFFD700),
-                    fontSize = 32.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = FontFamily.Serif,
-                    textAlign = TextAlign.Center
-                )
-
-                Spacer(modifier = Modifier.height(20.dp))
-
-                Text(
-                    text = "Streamline boarding house management, rent collections, digital receipts, and tenant communications effortlessly.",
-                    color = Color.White.copy(alpha = 0.85f),
-                    fontSize = 16.sp,
-                    textAlign = TextAlign.Center,
-                    lineHeight = 22.sp,
-                    modifier = Modifier.padding(horizontal = 8.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(48.dp))
-
-            // Clickable Role Buttons / Cards at the Bottom
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+            // Brand
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(BrandGold),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Card(
-                        onClick = onNavigateToLandlord,
-                        modifier = Modifier.weight(1f),
-                        colors = CardDefaults.cardColors(
-                            containerColor = Color.White.copy(alpha = 0.15f)
-                        ),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFD700).copy(alpha = 0.6f)),
-                        shape = MaterialTheme.shapes.large
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.HomeWork,
-                                contentDescription = "Landlord Role",
-                                tint = Color(0xFFFFD700),
-                                modifier = Modifier.size(32.dp)
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = "For Landlords",
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 15.sp
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "Rent tracking & automated period management",
-                                color = Color.White.copy(alpha = 0.8f),
-                                fontSize = 11.sp,
-                                textAlign = TextAlign.Center
-                            )
-                        }
-                    }
-
-                    Card(
-                        onClick = onNavigateToTenant,
-                        modifier = Modifier.weight(1f),
-                        colors = CardDefaults.cardColors(
-                            containerColor = Color.White.copy(alpha = 0.15f)
-                        ),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFFD700).copy(alpha = 0.6f)),
-                        shape = MaterialTheme.shapes.large
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Key,
-                                contentDescription = "Tenant Role",
-                                tint = Color(0xFFFFD700),
-                                modifier = Modifier.size(32.dp)
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = "For Tenants",
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 15.sp
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "Find boarding houses & request room holds",
-                                color = Color.White.copy(alpha = 0.8f),
-                                fontSize = 11.sp,
-                                textAlign = TextAlign.Center
-                            )
-                        }
-                    }
+                    Icon(Icons.Default.Apartment, contentDescription = null, tint = HeroGradientStart)
                 }
+                Spacer(Modifier.width(12.dp))
+                Text("Nyumba", style = MaterialTheme.typography.titleLarge, color = Color.White, fontWeight = FontWeight.Bold)
             }
+
+            Spacer(Modifier.weight(1f).heightIn(min = 64.dp))
+
+            // Hero
+            Text(
+                "Boarding houses,\nmanaged beautifully.",
+                style = MaterialTheme.typography.displaySmall,
+                color = Color.White
+            )
+            Spacer(Modifier.height(12.dp))
+            Text(
+                "Rooms, rent, mobile-money payments, receipts and tenant conversations — all in one place.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = Color.White.copy(alpha = 0.82f)
+            )
+
+            Spacer(Modifier.height(20.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FeatureChip(Icons.Default.Payments, "Mobile money")
+                FeatureChip(Icons.AutoMirrored.Filled.ReceiptLong, "Receipts")
+                FeatureChip(Icons.Default.Forum, "Chat")
+            }
+
+            Spacer(Modifier.height(32.dp))
+            Text(
+                "Get started",
+                style = MaterialTheme.typography.labelLarge,
+                color = Color.White.copy(alpha = 0.7f)
+            )
+            Spacer(Modifier.height(10.dp))
+
+            RoleCard(
+                icon = Icons.Default.Key,
+                title = "I'm a tenant",
+                subtitle = "Find a room, pay rent and get receipts",
+                onClick = onNavigateToTenant,
+                highlighted = true
+            )
+            Spacer(Modifier.height(12.dp))
+            RoleCard(
+                icon = Icons.Default.HomeWork,
+                title = "I'm a landlord",
+                subtitle = "Manage houses, tenants and collections",
+                onClick = onNavigateToLandlord,
+                highlighted = false
+            )
+            Spacer(Modifier.height(8.dp))
+        }
+    }
+}
+
+@Composable
+private fun FeatureChip(icon: ImageVector, label: String) {
+    Surface(
+        color = Color.White.copy(alpha = 0.12f),
+        shape = RoundedCornerShape(50),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.18f))
+    ) {
+        Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, contentDescription = null, tint = BrandGold, modifier = Modifier.size(14.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(label, style = MaterialTheme.typography.labelMedium, color = Color.White)
+        }
+    }
+}
+
+@Composable
+private fun RoleCard(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+    highlighted: Boolean
+) {
+    val container = if (highlighted) BrandGold else Color.White.copy(alpha = 0.10f)
+    val content = if (highlighted) Color(0xFF2C1800) else Color.White
+    Surface(
+        onClick = onClick,
+        color = container,
+        shape = MaterialTheme.shapes.large,
+        border = if (highlighted) null else BorderStroke(1.dp, Color.White.copy(alpha = 0.22f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(modifier = Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(content.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(icon, contentDescription = null, tint = content)
+            }
+            Spacer(Modifier.width(14.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleMedium, color = content)
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = content.copy(alpha = 0.75f))
+            }
+            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = content)
         }
     }
 }

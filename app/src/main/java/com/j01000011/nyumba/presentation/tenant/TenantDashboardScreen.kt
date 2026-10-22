@@ -4,23 +4,29 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.Message
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.j01000011.nyumba.domain.model.RentStatus
 import com.j01000011.nyumba.domain.model.RoomRequestStatus
 import com.j01000011.nyumba.presentation.auth.AuthViewModel
+import com.j01000011.nyumba.presentation.payments.tone
+import com.j01000011.nyumba.ui.components.*
+import com.j01000011.nyumba.ui.theme.HeroGradientStart
 import java.text.SimpleDateFormat
 import java.util.*
+
+private data class TenantAction(val icon: ImageVector, val label: String, val tone: Tone, val onClick: () -> Unit)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -29,6 +35,7 @@ fun TenantDashboardScreen(
     onNavigateToRoomDiscovery: () -> Unit,
     onNavigateToNotifications: () -> Unit,
     onNavigateToRent: () -> Unit,
+    onNavigateToMakePayment: () -> Unit,
     onNavigateToReceipts: () -> Unit,
     onNavigateToPaymentHistory: () -> Unit,
     onNavigateToMyRoom: () -> Unit,
@@ -40,241 +47,227 @@ fun TenantDashboardScreen(
 ) {
     val user by authViewModel.currentUser.collectAsState()
     val stats by dashboardViewModel.stats.collectAsState()
+    var menuOpen by remember { mutableStateOf(false) }
 
     LaunchedEffect(user) {
-        user?.let {
-            dashboardViewModel.loadDashboardData(it)
-        }
+        user?.let { dashboardViewModel.loadDashboardData(it) }
     }
+
+    val firstName = user?.fullName?.trim()?.substringBefore(' ')?.takeIf { it.isNotBlank() } ?: "there"
+    val hasRoom = user?.currentRoomId != null
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Nyumba - Tenant") },
+                title = {
+                    Column {
+                        Text("${greeting()}, $firstName", style = MaterialTheme.typography.titleLarge)
+                        Text(
+                            stats.currentHouse?.name ?: "Welcome to Nyumba",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
                 actions = {
                     IconButton(onClick = onNavigateToNotifications) {
-                        Icon(Icons.Default.Notifications, contentDescription = "Notifications")
+                        Icon(Icons.Default.NotificationsNone, contentDescription = "Notifications")
                     }
-                    IconButton(onClick = onNavigateToProfile) {
-                        Icon(Icons.Default.AccountCircle, contentDescription = "Profile")
-                    }
-                    IconButton(onClick = {
-                        try {
-                            authViewModel.logout()
-                        } catch (_: Exception) {
-                            // Handle exception gracefully
-                        } finally {
-                            onLogout()
+                    Box {
+                        IconButton(onClick = { menuOpen = true }) {
+                            Icon(Icons.Default.AccountCircle, contentDescription = "Account")
                         }
-                    }) {
-                        Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = "Logout")
+                        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                            DropdownMenuItem(
+                                text = { Text("Profile") },
+                                leadingIcon = { Icon(Icons.Default.Person, null) },
+                                onClick = { menuOpen = false; onNavigateToProfile() }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Sign out") },
+                                leadingIcon = { Icon(Icons.AutoMirrored.Filled.Logout, null) },
+                                onClick = {
+                                    menuOpen = false
+                                    authViewModel.logout()
+                                    onLogout()
+                                }
+                            )
+                        }
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
             )
         }
     ) { padding ->
         LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp),
+            modifier = Modifier.fillMaxSize().padding(padding),
+            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            item {
-                Text(
-                    text = "Welcome, ${user?.fullName ?: "Tenant"}",
-                    style = MaterialTheme.typography.headlineMedium
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                if (user?.currentRoomId == null) {
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text(
-                                text = "You are currently not assigned to a room.",
-                                style = MaterialTheme.typography.titleMedium
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Button(
-                                onClick = onNavigateToRoomDiscovery,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text("Find a Boarding House")
-                            }
-                        }
+            if (!hasRoom) {
+                item {
+                    SurfaceCard {
+                        EmptyState(
+                            icon = Icons.Default.TravelExplore,
+                            title = "Find your next room",
+                            message = "Browse boarding houses near you and request a room. Your rent and receipts will show up here once you're approved.",
+                            actionLabel = "Browse boarding houses",
+                            onAction = onNavigateToRoomDiscovery,
+                            modifier = Modifier.padding(0.dp)
+                        )
                     }
-                } else {
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text(
-                                text = "Financial Overview",
-                                style = MaterialTheme.typography.titleMedium
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Column {
-                                    Text("Balance Due", style = MaterialTheme.typography.labelSmall)
-                                    Text("K${String.format(Locale.getDefault(), "%.2f", stats.outstandingBalance)}", style = MaterialTheme.typography.titleLarge)
-                                }
-                                Column(horizontalAlignment = Alignment.End) {
-                                    Text("Next Due", style = MaterialTheme.typography.labelSmall)
-                                    val dateStr = stats.nextDueDate?.let { SimpleDateFormat("dd MMM", Locale.getDefault()).format(Date(it)) } ?: "N/A"
-                                    Text(dateStr, style = MaterialTheme.typography.titleLarge)
-                                }
-                            }
-                            
-                            if (stats.advancePeriodsCovered > 0) {
-                                Spacer(modifier = Modifier.height(8.dp))
+                }
+                item {
+                    GridRows(
+                        items = listOf(
+                            TenantAction(Icons.AutoMirrored.Filled.Message, "Messages", Tone.Info, onNavigateToMessages),
+                            TenantAction(Icons.Default.Person, "Profile", Tone.Neutral, onNavigateToProfile)
+                        ),
+                        columns = 2
+                    ) { action, modifier ->
+                        QuickAction(action.icon, action.label, action.onClick, modifier, action.tone)
+                    }
+                }
+            } else {
+                item {
+                    BalanceHero(
+                        balance = stats.outstandingBalance,
+                        nextDueDate = stats.nextDueDate,
+                        nextDueStatus = stats.nextDueStatus,
+                        advanceMonths = stats.advancePeriodsCovered,
+                        onPay = onNavigateToMakePayment,
+                        onViewLedger = onNavigateToRent
+                    )
+                }
+                item {
+                    SurfaceCard(onClick = onNavigateToMyRoom) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconBadge(Icons.Default.MeetingRoom, tone = Tone.Brand)
+                            Spacer(Modifier.width(14.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(stats.currentRoom?.roomName ?: "My room", style = MaterialTheme.typography.titleMedium)
                                 Text(
-                                    "Advance Credit: ${stats.advancePeriodsCovered} months covered",
+                                    stats.currentHouse?.address?.ifBlank { null } ?: stats.currentHouse?.name ?: "Boarding house",
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
+                            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Home, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Column {
-                                Text(stats.currentRoom?.roomName ?: "Room", style = MaterialTheme.typography.titleSmall)
-                                Text(stats.currentHouse?.name ?: "Boarding House", style = MaterialTheme.typography.bodySmall)
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
-                    
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        DashboardActionTile(
-                            onClick = onNavigateToMyRoom,
-                            icon = Icons.Default.MeetingRoom,
-                            label = "My Room",
-                            modifier = Modifier.weight(1f)
-                        )
-                        DashboardActionTile(
-                            onClick = onNavigateToRent,
-                            icon = Icons.Default.Payments,
-                            label = "Rent",
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        DashboardActionTile(
-                            onClick = onNavigateToReceipts,
-                            icon = Icons.AutoMirrored.Filled.ReceiptLong,
-                            label = "Receipts",
-                            modifier = Modifier.weight(1f)
-                        )
-                        DashboardActionTile(
-                            onClick = onNavigateToPaymentHistory,
-                            icon = Icons.Default.History,
-                            label = "History",
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        DashboardActionTile(
-                            onClick = onNavigateToComplaints,
-                            icon = Icons.Default.Warning,
-                            label = "Complaints",
-                            modifier = Modifier.weight(1f)
-                        )
-                        DashboardActionTile(
-                            onClick = onNavigateToMessages,
-                            icon = Icons.AutoMirrored.Filled.Message,
-                            label = "Messages",
-                            modifier = Modifier.weight(1f)
-                        )
+                }
+                item {
+                    SectionHeader("Quick actions")
+                    GridRows(
+                        items = listOf(
+                            TenantAction(Icons.Default.CalendarMonth, "Rent", Tone.Brand, onNavigateToRent),
+                            TenantAction(Icons.AutoMirrored.Filled.ReceiptLong, "Receipts", Tone.Brand, onNavigateToReceipts),
+                            TenantAction(Icons.Default.History, "History", Tone.Info, onNavigateToPaymentHistory),
+                            TenantAction(Icons.Default.ReportProblem, "Complaints", Tone.Warning, onNavigateToComplaints),
+                            TenantAction(Icons.AutoMirrored.Filled.Message, "Messages", Tone.Info, onNavigateToMessages),
+                            TenantAction(Icons.Default.MeetingRoom, "My room", Tone.Neutral, onNavigateToMyRoom)
+                        ),
+                        columns = 3
+                    ) { action, modifier ->
+                        QuickAction(action.icon, action.label, action.onClick, modifier, action.tone)
                     }
                 }
             }
 
             if (stats.requests.isNotEmpty()) {
-                item {
-                    Text("My Requests & Holds", style = MaterialTheme.typography.titleLarge)
-                }
-                
-                items(stats.requests) { request ->
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text("Room Request", style = MaterialTheme.typography.titleMedium)
-                                TenantStatusChip(request.status)
-                            }
-                            Spacer(modifier = Modifier.height(4.dp))
-                            if (request.status == RoomRequestStatus.HOLDING) {
-                                request.holdUntil?.let {
-                                    val remaining = (it - System.currentTimeMillis()) / 1000 / 60
-                                    Text(
-                                        text = "Hold expires in: ${maxOf(0, remaining)} mins",
-                                        color = MaterialTheme.colorScheme.secondary
-                                    )
+                item { SectionHeader("Room requests") }
+                items(stats.requests, key = { it.requestId }) { request ->
+                    SurfaceCard {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconBadge(Icons.Default.Bookmark, tone = request.status.tone(), size = 40)
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text("Room request", style = MaterialTheme.typography.titleSmall)
+                                val detail = when {
+                                    request.status == RoomRequestStatus.HOLDING && request.holdUntil != null -> {
+                                        val mins = maxOf(0, (request.holdUntil - System.currentTimeMillis()) / 60_000)
+                                        "Held for you · expires in ${formatDuration(mins)}"
+                                    }
+                                    else -> "Requested ${SimpleDateFormat("d MMM", Locale.getDefault()).format(Date(request.createdAt))}"
                                 }
+                                Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
+                            TenantStatusChip(request.status)
                         }
                     }
                 }
             }
+            item { Spacer(Modifier.height(8.dp)) }
         }
     }
 }
 
 @Composable
-fun DashboardActionTile(
-    onClick: () -> Unit,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    modifier: Modifier = Modifier
+private fun BalanceHero(
+    balance: Double,
+    nextDueDate: Long?,
+    nextDueStatus: RentStatus?,
+    advanceMonths: Int,
+    onPay: () -> Unit,
+    onViewLedger: () -> Unit
 ) {
-    Surface(
-        onClick = onClick,
-        modifier = modifier,
-        shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        tonalElevation = 2.dp
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(label, style = MaterialTheme.typography.labelMedium)
+    HeroCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Balance due", style = MaterialTheme.typography.labelLarge, color = LocalContentColor.current.copy(alpha = 0.8f), modifier = Modifier.weight(1f))
+            if (nextDueStatus == RentStatus.OVERDUE) {
+                Surface(color = Color.White, shape = MaterialTheme.shapes.small) {
+                    Text("Overdue", modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.error)
+                }
+            }
+        }
+        Spacer(Modifier.height(4.dp))
+        Text(formatKwacha(balance), style = MaterialTheme.typography.displaySmall)
+        Spacer(Modifier.height(4.dp))
+        val dueText = nextDueDate?.let { "Next due ${SimpleDateFormat("EEE, d MMM", Locale.getDefault()).format(Date(it))}" } ?: "You're all paid up"
+        Text(dueText, style = MaterialTheme.typography.bodyMedium, color = LocalContentColor.current.copy(alpha = 0.85f))
+        if (advanceMonths > 0) {
+            Text("$advanceMonths month(s) paid in advance", style = MaterialTheme.typography.bodySmall, color = LocalContentColor.current.copy(alpha = 0.75f))
+        }
+        Spacer(Modifier.height(18.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Button(
+                onClick = onPay,
+                modifier = Modifier.weight(1f).height(48.dp),
+                shape = MaterialTheme.shapes.medium,
+                colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = HeroGradientStart)
+            ) {
+                Icon(Icons.Default.Payments, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Pay now")
+            }
+            OutlinedButton(
+                onClick = onViewLedger,
+                modifier = Modifier.weight(1f).height(48.dp),
+                shape = MaterialTheme.shapes.medium,
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.6f)),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+            ) { Text("View ledger") }
         }
     }
+}
+
+private fun greeting(): String = when (Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) {
+    in 5..11 -> "Good morning"
+    in 12..16 -> "Good afternoon"
+    else -> "Good evening"
+}
+
+private fun formatDuration(minutes: Long): String =
+    if (minutes >= 60) "${minutes / 60}h ${minutes % 60}m" else "${minutes}m"
+
+fun RoomRequestStatus.tone(): Tone = when (this) {
+    RoomRequestStatus.APPROVED -> Tone.Success
+    RoomRequestStatus.PENDING -> Tone.Info
+    RoomRequestStatus.HOLDING -> Tone.Warning
+    RoomRequestStatus.REJECTED, RoomRequestStatus.EXPIRED -> Tone.Danger
 }
 
 @Composable
 fun TenantStatusChip(status: RoomRequestStatus) {
-    val color = when (status) {
-        RoomRequestStatus.APPROVED -> MaterialTheme.colorScheme.primary
-        RoomRequestStatus.PENDING, RoomRequestStatus.HOLDING -> MaterialTheme.colorScheme.secondary
-        RoomRequestStatus.REJECTED, RoomRequestStatus.EXPIRED -> MaterialTheme.colorScheme.error
-    }
-    Surface(
-        color = color.copy(alpha = 0.1f),
-        shape = MaterialTheme.shapes.small,
-        border = androidx.compose.foundation.BorderStroke(1.dp, color)
-    ) {
-        Text(
-            text = status.name,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-            style = MaterialTheme.typography.labelMedium,
-            color = color
-        )
-    }
+    StatusPill(text = humanize(status.name), tone = status.tone())
 }

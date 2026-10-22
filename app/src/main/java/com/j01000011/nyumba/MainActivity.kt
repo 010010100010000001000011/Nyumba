@@ -10,8 +10,8 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
@@ -109,11 +109,12 @@ fun NyumbaAppContent(imageStorageService: ImageStorageService) {
         }
     }
 
-    Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+    // Each screen owns its Scaffold and window insets; wrapping the NavHost in another
+    // Scaffold would apply the system-bar padding twice.
+    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         NavHost(
             navController = navController,
-            startDestination = Screen.Splash.route,
-            modifier = Modifier.padding(innerPadding)
+            startDestination = Screen.Splash.route
         ) {
             composable(Screen.Splash.route) {
                 SplashScreen(
@@ -216,6 +217,7 @@ fun NyumbaAppContent(imageStorageService: ImageStorageService) {
                     onNavigateToRoomDiscovery = { navController.navigate(Screen.BoardingHouseDiscovery.route) },
                     onNavigateToNotifications = { navController.navigate(Screen.Notifications.route) },
                     onNavigateToRent = { navController.navigate(Screen.RentDetails.route) },
+                    onNavigateToMakePayment = { navController.navigate(Screen.MakePayment.route) },
                     onNavigateToReceipts = { navController.navigate(Screen.MyReceipts.route) },
                     onNavigateToPaymentHistory = { navController.navigate(Screen.PaymentHistory.route) },
                     onNavigateToMyRoom = { navController.navigate(Screen.MyRoom.route) },
@@ -352,7 +354,14 @@ fun NyumbaAppContent(imageStorageService: ImageStorageService) {
             }
 
             composable(Screen.MakePayment.route) {
-                MakePaymentScreen(onNavigateBack = { navController.popBackStack() })
+                MakePaymentScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    onViewReceipt = { receiptId ->
+                        navController.navigate(Screen.ReceiptDetails.createRoute(receiptId)) {
+                            popUpTo(Screen.MakePayment.route) { inclusive = true }
+                        }
+                    }
+                )
             }
 
             composable(

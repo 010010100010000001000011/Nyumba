@@ -1,14 +1,26 @@
 package com.j01000011.nyumba.presentation.auth
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Login
+import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Mail
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.j01000011.nyumba.domain.model.UserRole
+import com.j01000011.nyumba.ui.components.InlineMessage
+import com.j01000011.nyumba.ui.components.NyumbaTextField
+import com.j01000011.nyumba.ui.components.PrimaryButton
 
 @Composable
 fun LoginScreen(
@@ -19,7 +31,9 @@ fun LoginScreen(
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var submitted by remember { mutableStateOf(false) }
     val authState by viewModel.authState.collectAsState()
+    val focusManager = LocalFocusManager.current
 
     LaunchedEffect(authState) {
         if (authState is AuthState.Success) {
@@ -28,60 +42,88 @@ fun LoginScreen(
         }
     }
 
-    val titleText = when (initialRole) {
-        UserRole.LANDLORD -> "Landlord Login"
-        UserRole.TENANT -> "Tenant Login"
-        null -> "Nyumba Login"
+    val emailError = submitted && !isValidEmail(email)
+    val passwordError = submitted && password.isBlank()
+
+    val signIn = {
+        submitted = true
+        focusManager.clearFocus()
+        if (isValidEmail(email) && password.isNotBlank()) viewModel.login(email.trim(), password)
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Text(text = titleText, style = MaterialTheme.typography.headlineMedium)
-        Spacer(modifier = Modifier.height(32.dp))
+    val subtitle = when (initialRole) {
+        UserRole.LANDLORD -> "Sign in to manage your boarding houses."
+        UserRole.TENANT -> "Sign in to see your room, rent and receipts."
+        null -> "Sign in to continue to Nyumba."
+    }
 
-        OutlinedTextField(
-            value = email,
-            onValueChange = { email = it },
-            label = { Text("Email") },
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(modifier = Modifier.height(8.dp))
+    Scaffold { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .imePadding()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp, vertical = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            AuthHeader(title = "Welcome back", subtitle = subtitle)
+            Spacer(Modifier.height(8.dp))
 
-        OutlinedTextField(
-            value = password,
-            onValueChange = { password = it },
-            label = { Text("Password") },
-            visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth()
-        )
-        Spacer(modifier = Modifier.height(16.dp))
+            NyumbaTextField(
+                value = email,
+                onValueChange = { email = it },
+                label = "Email address",
+                leadingIcon = Icons.Default.Mail,
+                keyboardType = KeyboardType.Email,
+                isError = emailError,
+                supportingText = if (emailError) "Enter a valid email address" else null
+            )
+            NyumbaTextField(
+                value = password,
+                onValueChange = { password = it },
+                label = "Password",
+                leadingIcon = Icons.Default.Lock,
+                keyboardType = KeyboardType.Password,
+                isPassword = true,
+                imeAction = ImeAction.Done,
+                onImeAction = signIn,
+                isError = passwordError,
+                supportingText = if (passwordError) "Enter your password" else null
+            )
 
-        if (authState is AuthState.Loading) {
-            CircularProgressIndicator()
-        } else {
-            Button(
-                onClick = { viewModel.login(email, password) },
-                modifier = Modifier.fillMaxWidth()
+            (authState as? AuthState.Error)?.let {
+                InlineMessage(text = friendlyAuthError(it.message), icon = Icons.Default.ErrorOutline)
+            }
+
+            PrimaryButton(
+                text = "Sign in",
+                onClick = signIn,
+                loading = authState is AuthState.Loading,
+                icon = Icons.AutoMirrored.Filled.Login
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Login")
+                Text("New to Nyumba?", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                TextButton(onClick = { onNavigateToRegister(initialRole) }) { Text("Create an account") }
             }
         }
-
-        TextButton(onClick = { onNavigateToRegister(initialRole) }) {
-            Text("Don't have an account? Register")
-        }
-
-        if (authState is AuthState.Error) {
-            Text(
-                text = (authState as AuthState.Error).message,
-                color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.padding(top = 8.dp)
-            )
-        }
     }
+}
+
+/** Firebase Auth messages are technical; map the common ones to plain language. */
+internal fun friendlyAuthError(message: String): String = when {
+    message.contains("password is invalid", true) ||
+        message.contains("credential is incorrect", true) ||
+        message.contains("INVALID_LOGIN_CREDENTIALS", true) -> "Incorrect email or password."
+    message.contains("no user record", true) -> "No account found with that email."
+    message.contains("already in use", true) -> "An account with this email already exists. Try signing in."
+    message.contains("network", true) -> "No internet connection. Check your network and try again."
+    message.contains("blocked", true) || message.contains("too many", true) -> "Too many attempts. Please wait a moment and try again."
+    message.contains("at least 6", true) || message.contains("WEAK_PASSWORD", true) -> "Password must be at least 6 characters."
+    else -> message
 }

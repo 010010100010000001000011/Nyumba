@@ -23,6 +23,10 @@ class AuthViewModel @Inject constructor(
     private val _currentUser = MutableStateFlow<User?>(null)
     val currentUser: StateFlow<User?> = _currentUser.asStateFlow()
 
+    /** False until the signed-in state (and profile, if signed in) has been loaded once. */
+    private val _authResolved = MutableStateFlow(false)
+    val authResolved: StateFlow<Boolean> = _authResolved.asStateFlow()
+
     init {
         viewModelScope.launch {
             authRepository.currentUser.collect { user ->
@@ -32,6 +36,7 @@ class AuthViewModel @Inject constructor(
                 } else {
                     _currentUser.value = null
                 }
+                _authResolved.value = true
             }
         }
     }

@@ -1,6 +1,6 @@
 package com.j01000011.nyumba.di
 
-import com.j01000011.nyumba.data.payment.MockMobileMoneyService
+import com.j01000011.nyumba.data.payment.LipilaMobileMoneyService
 import com.j01000011.nyumba.data.repository.*
 import com.j01000011.nyumba.domain.repository.*
 import dagger.Binds
@@ -58,7 +58,7 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindMobileMoneyService(
-        mockMobileMoneyService: MockMobileMoneyService
+        lipilaMobileMoneyService: LipilaMobileMoneyService
     ): MobileMoneyService
 
     @Binds

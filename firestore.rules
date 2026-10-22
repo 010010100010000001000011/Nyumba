@@ -136,15 +136,17 @@ service cloud.firestore {
       allow delete: if ownsHouse(resource.data.boardingHouseId) || landlordOfTenant(resource.data.tenantId);
     }
 
+    // Lipila payment intents: written only by Cloud Functions (functions/src/payments.ts).
+    match /paymentIntents/{referenceId} {
+      allow read: if isSignedIn() && resource.data.tenantId == request.auth.uid;
+    }
+
     // Payments
-    // NOTE: tenants can still create MOBILE_MONEY payments from the client because payment
-    // confirmation is not yet server-side. Move payment creation to a Cloud Function once the
-    // real MTN MoMo integration exists, then remove the tenant branch here.
+    // Mobile-money payments are recorded server-side by Cloud Functions; landlords record cash.
     match /payments/{paymentId} {
       allow read: if tenantOrLandlord(resource.data);
       allow create: if ownsHouse(request.resource.data.boardingHouseId)
-        || (isOwnTenantRecord(request.resource.data)
-            && request.resource.data.paymentMethod == 'MOBILE_MONEY');
+        && request.resource.data.paymentMethod == 'CASH';
       allow update: if ownsHouse(resource.data.boardingHouseId) && unchanged('boardingHouseId');
       allow delete: if ownsHouse(resource.data.boardingHouseId) || landlordOfTenant(resource.data.tenantId);
     }
@@ -152,8 +154,7 @@ service cloud.firestore {
     // Receipts
     match /receipts/{receiptId} {
       allow read: if tenantOrLandlord(resource.data);
-      allow create: if ownsHouse(request.resource.data.boardingHouseId)
-        || isOwnTenantRecord(request.resource.data);
+      allow create: if ownsHouse(request.resource.data.boardingHouseId);
       allow delete: if ownsHouse(resource.data.boardingHouseId) || landlordOfTenant(resource.data.tenantId);
     }
 
@@ -161,12 +162,12 @@ service cloud.firestore {
     match /rentPeriods/{periodId} {
       allow read: if tenantOrLandlord(resource.data);
       allow create: if ownsHouse(request.resource.data.boardingHouseId);
-      // Tenants update allocation/reminder fields on their own periods (client-side allocation;
-      // see payments note above). remainingBalance/currentOrPastDue are legacy computed fields.
+      // Tenants' reminder worker may only record sent reminders and flag a period OVERDUE.
       allow update: if (ownsHouse(resource.data.boardingHouseId) && unchanged('boardingHouseId'))
         || (isSignedIn()
           && resource.data.tenantId == request.auth.uid
-          && changedOnly(['amountPaid', 'status', 'updatedAt', 'sentReminders', 'remainingBalance', 'currentOrPastDue']));
+          && changedOnly(['status', 'updatedAt', 'sentReminders'])
+          && (unchanged('status') || request.resource.data.status == 'OVERDUE'));
       allow delete: if ownsHouse(resource.data.boardingHouseId) || landlordOfTenant(resource.data.tenantId);
     }
 

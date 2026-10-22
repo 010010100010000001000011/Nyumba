@@ -15,7 +15,9 @@ sealed class RentUiState {
     object Loading : RentUiState()
     object Success : RentUiState()
     data class Error(val message: String) : RentUiState()
-    data class AwaitingPayment(val transactionId: String) : RentUiState()
+    data class AwaitingPayment(val transactionId: String, val phoneNumber: String, val amount: Double) : RentUiState()
+    /** Mobile money confirmed by Lipila; the backend has already recorded the payment and receipt. */
+    data class PaymentConfirmed(val amount: Double, val receiptId: String?) : RentUiState()
 }
 
 @HiltViewModel
@@ -60,60 +62,33 @@ class RentViewModel @Inject constructor(
         }
     }
 
-    fun makePayment(
-        tenant: User,
-        amount: Double,
-        method: PaymentMethod,
-        notes: String? = null
-    ) {
+    fun makePayment(phoneNumber: String, amount: Double, notes: String? = null) {
         viewModelScope.launch {
             _rentState.value = RentUiState.Loading
-            
-            if (method == PaymentMethod.MOBILE_MONEY) {
-                mobileMoneyService.initiatePayment(tenant.phoneNumber, amount)
-                    .onSuccess { mmPayment ->
-                        _rentState.value = RentUiState.AwaitingPayment(mmPayment.transactionId)
-                        // Start observing updates
-                        observeMobileMoneyStatus(mmPayment.transactionId, tenant, amount, notes)
-                    }
-                    .onFailure {
-                        _rentState.value = RentUiState.Error(it.message ?: "Failed to initiate Mobile Money")
-                    }
-            } else {
-                // Should not happen for tenants in standard flow unless cash is allowed for them
-                _rentState.value = RentUiState.Error("Unsupported payment method for tenant initiation")
-            }
+            mobileMoneyService.initiatePayment(phoneNumber, amount, notes)
+                .onSuccess { payment ->
+                    _rentState.value = RentUiState.AwaitingPayment(payment.transactionId, phoneNumber, amount)
+                    observeMobileMoneyStatus(payment.transactionId, amount)
+                }
+                .onFailure {
+                    _rentState.value = RentUiState.Error(it.message ?: "Failed to start mobile money payment")
+                }
         }
     }
 
-    private fun observeMobileMoneyStatus(transactionId: String, tenant: User, amount: Double, notes: String?) {
+    private fun observeMobileMoneyStatus(transactionId: String, amount: Double) {
         viewModelScope.launch {
-            mobileMoneyService.getPaymentUpdates(transactionId).collect { update ->
-                when (update.status) {
-                    MobileMoneyStatus.SUCCESSFUL -> {
-                        val payment = Payment(
-                            tenantId = tenant.uid,
-                            landlordId = tenant.landlordId ?: "",
-                            boardingHouseId = tenant.boardingHouseId ?: "",
-                            roomId = tenant.currentRoomId ?: "",
-                            amount = amount,
-                            paymentMethod = PaymentMethod.MOBILE_MONEY,
-                            transactionId = transactionId,
-                            notes = notes,
-                            createdBy = tenant.uid
-                        )
-                        rentRepository.recordPayment(payment)
-                            .onSuccess { _rentState.value = RentUiState.Success }
-                            .onFailure { _rentState.value = RentUiState.Error(it.message ?: "Failed to record confirmed payment") }
-                    }
-                    MobileMoneyStatus.FAILED, MobileMoneyStatus.CANCELLED -> {
-                        _rentState.value = RentUiState.Error("Payment ${update.status.name.lowercase()}")
-                    }
-                    MobileMoneyStatus.PENDING -> {
-                        // Continue waiting
+            mobileMoneyService.getPaymentUpdates(transactionId)
+                .catch { _rentState.value = RentUiState.Error(it.message ?: "Lost track of the payment status") }
+                .collect { update ->
+                    when (update.status) {
+                        MobileMoneyStatus.SUCCESSFUL ->
+                            _rentState.value = RentUiState.PaymentConfirmed(amount, update.receiptId)
+                        MobileMoneyStatus.FAILED, MobileMoneyStatus.CANCELLED ->
+                            _rentState.value = RentUiState.Error(update.message ?: "Payment ${update.status.name.lowercase()}")
+                        MobileMoneyStatus.PENDING -> Unit // keep waiting
                     }
                 }
-            }
         }
     }
 

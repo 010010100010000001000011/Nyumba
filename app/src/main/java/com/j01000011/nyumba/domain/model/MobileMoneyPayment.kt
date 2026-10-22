@@ -5,7 +5,9 @@ data class MobileMoneyPayment(
     val phoneNumber: String = "",
     val amount: Double = 0.0,
     val status: MobileMoneyStatus = MobileMoneyStatus.PENDING,
-    val provider: String = "MockProvider",
+    val provider: String = "Lipila",
+    val message: String? = null,
+    val receiptId: String? = null,
     val timestamp: Long = System.currentTimeMillis()
 )
 

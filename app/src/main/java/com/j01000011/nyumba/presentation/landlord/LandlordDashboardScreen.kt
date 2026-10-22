@@ -15,12 +15,23 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.j01000011.nyumba.domain.model.BoardingHouse
 import com.j01000011.nyumba.presentation.auth.AuthViewModel
-import java.util.*
+import com.j01000011.nyumba.ui.components.*
+
+private data class ManageAction(
+    val icon: ImageVector,
+    val label: String,
+    val tone: Tone,
+    val badge: Int = 0,
+    val onClick: () -> Unit
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -48,328 +59,251 @@ fun LandlordDashboardScreen(
     val boardingHouses by switcherViewModel.boardingHouses.collectAsState()
     val activeHouse by switcherViewModel.activeBoardingHouse.collectAsState()
     val stats by dashboardViewModel.stats.collectAsState()
-    
+
     var showSwitcher by remember { mutableStateOf(false) }
+    var menuOpen by remember { mutableStateOf(false) }
 
     LaunchedEffect(user) {
         user?.let { switcherViewModel.loadBoardingHouses(it.uid) }
     }
-
     LaunchedEffect(activeHouse) {
         activeHouse?.let { dashboardViewModel.loadStats(it.boardingHouseId) }
     }
+
+    // Runs the action against the active house, if there is one.
+    fun withHouse(action: (String) -> Unit): () -> Unit = { activeHouse?.let { action(it.boardingHouseId) } }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text("Nyumba Landlord", style = MaterialTheme.typography.titleMedium)
-                        activeHouse?.let {
-                            Text(it.name, style = MaterialTheme.typography.bodySmall)
+                    Surface(
+                        onClick = { if (boardingHouses.isNotEmpty()) showSwitcher = true },
+                        shape = MaterialTheme.shapes.medium,
+                        color = Color.Transparent
+                    ) {
+                        Column(Modifier.padding(vertical = 4.dp)) {
+                            Text("Landlord", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    activeHouse?.name ?: "Nyumba",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f, fill = false)
+                                )
+                                if (boardingHouses.isNotEmpty()) {
+                                    Icon(Icons.Default.ExpandMore, contentDescription = "Switch house")
+                                }
+                            }
                         }
                     }
                 },
                 actions = {
                     IconButton(onClick = onNavigateToNotifications) {
-                        Icon(Icons.Default.Notifications, contentDescription = "Notifications")
+                        Icon(Icons.Default.NotificationsNone, contentDescription = "Notifications")
                     }
-                    IconButton(onClick = onNavigateToProfile) {
-                        Icon(Icons.Default.AccountCircle, contentDescription = "Profile")
-                    }
-                    IconButton(onClick = { showSwitcher = true }) {
-                        Icon(Icons.Default.SwapHoriz, contentDescription = "Switch House")
-                    }
-                    IconButton(onClick = {
-                        try {
-                            authViewModel.logout()
-                        } catch (_: Exception) {
-                            // Handle exception gracefully
-                        } finally {
-                            onLogout()
+                    Box {
+                        IconButton(onClick = { menuOpen = true }) {
+                            Icon(Icons.Default.AccountCircle, contentDescription = "Account")
                         }
-                    }) {
-                        Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = "Logout")
+                        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                            DropdownMenuItem(
+                                text = { Text("Add boarding house") },
+                                leadingIcon = { Icon(Icons.Default.AddHome, null) },
+                                onClick = { menuOpen = false; onNavigateToAddBoardingHouse() }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Profile") },
+                                leadingIcon = { Icon(Icons.Default.Person, null) },
+                                onClick = { menuOpen = false; onNavigateToProfile() }
+                            )
+                            HorizontalDivider()
+                            DropdownMenuItem(
+                                text = { Text("Sign out") },
+                                leadingIcon = { Icon(Icons.AutoMirrored.Filled.Logout, null) },
+                                onClick = {
+                                    menuOpen = false
+                                    authViewModel.logout()
+                                    onLogout()
+                                }
+                            )
+                        }
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
             )
-        },
-        floatingActionButton = {
-            FloatingActionButton(onClick = onNavigateToAddBoardingHouse) {
-                Icon(Icons.Default.Add, contentDescription = "Add Boarding House")
-            }
         }
     ) { padding ->
         if (boardingHouses.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("No boarding houses managed yet.")
-                    Button(onClick = onNavigateToAddBoardingHouse, modifier = Modifier.padding(top = 16.dp)) {
-                        Text("Add Your First House")
-                    }
-                }
-            }
+            EmptyState(
+                icon = Icons.Default.AddHome,
+                title = "Add your first boarding house",
+                message = "Set up a house, add its rooms and start accepting tenants and rent payments.",
+                actionLabel = "Add boarding house",
+                onAction = onNavigateToAddBoardingHouse,
+                modifier = Modifier.padding(padding).padding(top = 48.dp)
+            )
         } else {
+            val manageActions = listOf(
+                ManageAction(Icons.Default.MeetingRoom, "Rooms", Tone.Brand, onClick = withHouse(onNavigateToRooms)),
+                ManageAction(Icons.AutoMirrored.Filled.Assignment, "Requests", Tone.Info, stats.pendingRequests, withHouse(onNavigateToRoomRequests)),
+                ManageAction(Icons.Default.People, "Tenants", Tone.Brand, onClick = withHouse(onNavigateToTenants)),
+                ManageAction(Icons.Default.Payments, "Payments", Tone.Success, onClick = withHouse(onNavigateToPayments)),
+                ManageAction(Icons.AutoMirrored.Filled.ReceiptLong, "Receipts", Tone.Success, onClick = withHouse(onNavigateToHouseReceipts)),
+                ManageAction(Icons.Default.ReportProblem, "Issues", Tone.Warning, stats.pendingComplaints + stats.overdueComplaints, withHouse(onNavigateToComplaints)),
+                ManageAction(Icons.AutoMirrored.Filled.Chat, "Messages", Tone.Info, onClick = onNavigateToMessages),
+                ManageAction(Icons.AutoMirrored.Filled.Announcement, "Announce", Tone.Neutral, onClick = withHouse(onNavigateToBroadcast))
+            )
+
             LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(16.dp)
+                modifier = Modifier.fillMaxSize().padding(padding),
+                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                item {
-                    FinancialOverviewCard(stats)
-                    Spacer(modifier = Modifier.height(16.dp))
-                }
+                item { RevenueHero(stats) }
 
                 item {
-                    OperationalSummaryCard(stats)
-                    Spacer(modifier = Modifier.height(24.dp))
-                }
-
-                item {
-                    Text("Management", style = MaterialTheme.typography.titleMedium)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        DashboardButton(
-                            onClick = { activeHouse?.let { onNavigateToRooms(it.boardingHouseId) } },
-                            icon = Icons.Default.Home,
-                            label = "Rooms",
-                            modifier = Modifier.weight(1f)
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        val occupancy = if (stats.totalCapacity > 0) stats.occupiedSpaces * 100 / stats.totalCapacity else 0
+                        MetricTile("Occupancy", "$occupancy%", Icons.Default.Bed, Modifier.weight(1f), Tone.Brand)
+                        MetricTile("Requests", stats.pendingRequests.toString(), Icons.Default.HourglassTop, Modifier.weight(1f), Tone.Info)
+                        MetricTile(
+                            "Overdue issues", stats.overdueComplaints.toString(), Icons.Default.Warning, Modifier.weight(1f),
+                            if (stats.overdueComplaints > 0) Tone.Danger else Tone.Neutral
                         )
-                        DashboardButton(
-                            onClick = { activeHouse?.let { onNavigateToRoomRequests(it.boardingHouseId) } },
-                            icon = Icons.AutoMirrored.Filled.Assignment,
-                            label = "Requests",
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        DashboardButton(
-                            onClick = { activeHouse?.let { onNavigateToPayments(it.boardingHouseId) } },
-                            icon = Icons.Default.Payments,
-                            label = "Payments",
-                            modifier = Modifier.weight(1f),
-                            containerColor = MaterialTheme.colorScheme.secondaryContainer
-                        )
-                        DashboardButton(
-                            onClick = { activeHouse?.let { onNavigateToHouseReceipts(it.boardingHouseId) } },
-                            icon = Icons.AutoMirrored.Filled.ReceiptLong,
-                            label = "Receipts",
-                            modifier = Modifier.weight(1f),
-                            containerColor = MaterialTheme.colorScheme.secondaryContainer
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        DashboardButton(
-                            onClick = { activeHouse?.let { onNavigateToTenants(it.boardingHouseId) } },
-                            icon = Icons.Default.People,
-                            label = "Tenants",
-                            modifier = Modifier.weight(1f),
-                            containerColor = MaterialTheme.colorScheme.tertiaryContainer
-                        )
-                        DashboardButton(
-                            onClick = { activeHouse?.let { onNavigateToComplaints(it.boardingHouseId) } },
-                            icon = Icons.Default.Warning,
-                            label = "Complaints",
-                            modifier = Modifier.weight(1f),
-                            containerColor = MaterialTheme.colorScheme.errorContainer
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    DashboardButton(
-                        onClick = onNavigateToMessages,
-                        icon = Icons.AutoMirrored.Filled.Chat,
-                        label = "Messages",
-                        modifier = Modifier.fillMaxWidth(),
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
-                }
-
-                item {
-                    Spacer(modifier = Modifier.height(24.dp))
-                    Text("Communication", style = MaterialTheme.typography.titleMedium)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Button(
-                        onClick = { activeHouse?.let { onNavigateToBroadcast(it.boardingHouseId) } },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.Announcement, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("New Announcement")
                     }
                 }
 
                 item {
-                    Spacer(modifier = Modifier.height(24.dp))
-                    Text("Insights & Reports", style = MaterialTheme.typography.titleMedium)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        DashboardButton(
-                            onClick = { activeHouse?.let { onNavigateToReports(it.boardingHouseId) } },
-                            icon = Icons.Default.Assessment,
-                            label = "Finance Report",
-                            modifier = Modifier.weight(1f),
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant
-                        )
-                        DashboardButton(
-                            onClick = { activeHouse?.let { onNavigateToAuditLogs(it.boardingHouseId) } },
-                            icon = Icons.Default.History,
-                            label = "Audit Logs",
-                            modifier = Modifier.weight(1f),
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant
-                        )
+                    SectionHeader("Manage")
+                    GridRows(items = manageActions, columns = 4, spacing = 10) { action, modifier ->
+                        QuickAction(action.icon, action.label, action.onClick, modifier, action.tone, action.badge)
                     }
                 }
 
-
-                
                 item {
-                    Spacer(modifier = Modifier.height(24.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("House Details", style = MaterialTheme.typography.titleMedium)
-                        TextButton(onClick = { activeHouse?.let { onNavigateToEditHouse(it.boardingHouseId) } }) {
-                            Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Edit")
-                        }
+                    SectionHeader("Insights")
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        InsightCard(Icons.Default.Assessment, "Financial report", "Collections & arrears", withHouse(onNavigateToReports), Modifier.weight(1f))
+                        InsightCard(Icons.Default.History, "Audit log", "Every change, tracked", withHouse(onNavigateToAuditLogs), Modifier.weight(1f))
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    activeHouse?.let { house ->
-                        Card(modifier = Modifier.fillMaxWidth()) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Text("Address: ${house.address}")
-                                Text("Phone: ${house.phone}")
-                                if (house.description.isNotBlank()) {
-                                    Text("Description: ${house.description}")
-                                }
+                }
+
+                activeHouse?.let { house ->
+                    item {
+                        SectionHeader("House details", actionLabel = "Edit", onAction = { onNavigateToEditHouse(house.boardingHouseId) })
+                        SurfaceCard {
+                            InfoRow("Address", house.address.ifBlank { "—" })
+                            InfoRow("Phone", house.phone.ifBlank { "—" })
+                            InfoRow("Rooms", stats.totalRooms.toString())
+                            InfoRow("Beds", "${stats.occupiedSpaces} of ${stats.totalCapacity} occupied")
+                            if (house.description.isNotBlank()) {
+                                Spacer(Modifier.height(8.dp))
+                                Text(house.description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     }
                 }
+                item { Spacer(Modifier.height(8.dp)) }
             }
         }
 
         if (showSwitcher) {
             BoardingHouseSwitcherDialog(
                 houses = boardingHouses,
+                activeHouseId = activeHouse?.boardingHouseId,
                 onDismiss = { showSwitcher = false },
                 onSelect = {
                     switcherViewModel.switchBoardingHouse(it)
                     showSwitcher = false
+                },
+                onAddHouse = {
+                    showSwitcher = false
+                    onNavigateToAddBoardingHouse()
                 }
             )
         }
     }
 }
 
-
-
 @Composable
-fun FinancialOverviewCard(stats: com.j01000011.nyumba.presentation.landlord.DashboardStats) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text("Revenue cycle overview", style = MaterialTheme.typography.titleSmall)
-            Spacer(modifier = Modifier.height(16.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Column {
-                    Text("Collected", style = MaterialTheme.typography.labelSmall)
-                    Text("K${"%.2f".format(stats.rentCollected)}", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                }
-                Column(horizontalAlignment = Alignment.End) {
-                    Text("Outstanding", style = MaterialTheme.typography.labelSmall)
-                    Text("K${"%.2f".format(stats.outstandingRent)}", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
-                }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text("${stats.advancePaidTenants} Tenants have advance credit coverage", style = MaterialTheme.typography.bodySmall)
-        }
-    }
-}
-
-@Composable
-fun OperationalSummaryCard(stats: com.j01000011.nyumba.presentation.landlord.DashboardStats) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            LandlordStatItem("Occupancy", "${stats.occupiedSpaces}/${stats.totalCapacity}")
-            LandlordStatItem("Pending Req.", stats.pendingRequests.toString())
-            LandlordStatItem("Overdue Comp.", stats.overdueComplaints.toString(), isError = stats.overdueComplaints > 0)
-        }
-    }
-}
-
-@Composable
-fun LandlordStatItem(label: String, value: String, isError: Boolean = false) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = value, 
-            style = MaterialTheme.typography.titleMedium, 
-            color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface,
-            fontWeight = FontWeight.Bold
+private fun RevenueHero(stats: DashboardStats) {
+    val total = stats.rentCollected + stats.outstandingRent
+    val collectedShare = if (total > 0) (stats.rentCollected / total).toFloat() else 0f
+    HeroCard {
+        Text("Rent collected", style = MaterialTheme.typography.labelLarge, color = LocalContentColor.current.copy(alpha = 0.8f))
+        Spacer(Modifier.height(4.dp))
+        Text(formatKwacha(stats.rentCollected), style = MaterialTheme.typography.displaySmall)
+        Spacer(Modifier.height(16.dp))
+        LinearProgressIndicator(
+            progress = { collectedShare },
+            modifier = Modifier.fillMaxWidth().height(8.dp),
+            strokeCap = StrokeCap.Round,
+            color = Color.White,
+            trackColor = Color.White.copy(alpha = 0.25f)
         )
-        Text(label, style = MaterialTheme.typography.labelSmall)
-    }
-}
-
-@Composable
-fun DashboardButton(
-    onClick: () -> Unit,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    modifier: Modifier = Modifier,
-    containerColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.primaryContainer
-) {
-    Surface(
-        onClick = onClick,
-        modifier = modifier,
-        color = containerColor,
-        shape = MaterialTheme.shapes.medium,
-        tonalElevation = 2.dp
-    ) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Icon(icon, contentDescription = null)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(label, style = MaterialTheme.typography.labelMedium)
+        Spacer(Modifier.height(10.dp))
+        Row(Modifier.fillMaxWidth()) {
+            Column(Modifier.weight(1f)) {
+                Text("Outstanding", style = MaterialTheme.typography.labelMedium, color = LocalContentColor.current.copy(alpha = 0.75f))
+                Text(formatKwacha(stats.outstandingRent), style = MaterialTheme.typography.titleMedium)
+            }
+            Column(Modifier.weight(1f), horizontalAlignment = Alignment.End) {
+                Text("Paid in advance", style = MaterialTheme.typography.labelMedium, color = LocalContentColor.current.copy(alpha = 0.75f))
+                Text("${stats.advancePaidTenants} tenant(s)", style = MaterialTheme.typography.titleMedium)
+            }
         }
     }
 }
 
+@Composable
+private fun InsightCard(icon: ImageVector, title: String, subtitle: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    SurfaceCard(onClick = onClick, modifier = modifier) {
+        IconBadge(icon, tone = Tone.Info, size = 40)
+        Spacer(Modifier.height(12.dp))
+        Text(title, style = MaterialTheme.typography.titleSmall)
+        Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BoardingHouseSwitcherDialog(
     houses: List<BoardingHouse>,
+    activeHouseId: String?,
     onDismiss: () -> Unit,
-    onSelect: (BoardingHouse) -> Unit
+    onSelect: (BoardingHouse) -> Unit,
+    onAddHouse: () -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Switch Boarding House") },
-        text = {
-            Box(modifier = Modifier.height(300.dp)) {
-                LazyColumn {
-                    items(houses) { house ->
-                        ListItem(
-                            headlineContent = { Text(house.name) },
-                            supportingContent = { Text(house.address) },
-                            modifier = Modifier.clickable { onSelect(house) }
-                        )
-                    }
-                }
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Text(
+            "Your boarding houses",
+            style = MaterialTheme.typography.titleLarge,
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+        )
+        LazyColumn(modifier = Modifier.heightIn(max = 420.dp)) {
+            items(houses, key = { it.boardingHouseId }) { house ->
+                val selected = house.boardingHouseId == activeHouseId
+                ListItem(
+                    headlineContent = { Text(house.name) },
+                    supportingContent = { Text(house.address, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    leadingContent = { IconBadge(Icons.Default.Apartment, tone = if (selected) Tone.Brand else Tone.Neutral, size = 40) },
+                    trailingContent = { if (selected) Icon(Icons.Default.CheckCircle, contentDescription = "Selected", tint = MaterialTheme.colorScheme.primary) },
+                    modifier = Modifier.clickable { onSelect(house) }.padding(horizontal = 8.dp),
+                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                )
             }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Close") }
         }
-    )
+        OutlinedButton(
+            onClick = onAddHouse,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp).height(52.dp),
+            shape = MaterialTheme.shapes.medium
+        ) {
+            Icon(Icons.Default.AddHome, contentDescription = null)
+            Spacer(Modifier.width(8.dp))
+            Text("Add boarding house")
+        }
+        Spacer(Modifier.navigationBarsPadding())
+    }
 }
