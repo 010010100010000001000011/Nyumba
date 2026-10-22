@@ -74,6 +74,13 @@ class AuthRepositoryImpl @Inject constructor(
         auth.signOut()
     }
 
+    override suspend fun sendPasswordReset(email: String): Result<Unit> = try {
+        auth.sendPasswordResetEmail(email).await()
+        Result.success(Unit)
+    } catch (e: Exception) {
+        Result.failure(e)
+    }
+
     override suspend fun getProfile(uid: String): Result<User> {
         return try {
             val snapshot = firestore.collection("users").document(uid).get().await()

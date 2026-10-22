@@ -20,7 +20,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.j01000011.nyumba.domain.model.BoardingHouse
 import com.j01000011.nyumba.presentation.auth.AuthViewModel
 import com.j01000011.nyumba.ui.components.*
@@ -241,7 +241,8 @@ private fun RevenueHero(stats: DashboardStats) {
             modifier = Modifier.fillMaxWidth().height(8.dp),
             strokeCap = StrokeCap.Round,
             color = Color.White,
-            trackColor = Color.White.copy(alpha = 0.25f)
+            trackColor = Color.White.copy(alpha = 0.25f),
+            drawStopIndicator = {}
         )
         Spacer(Modifier.height(10.dp))
         Row(Modifier.fillMaxWidth()) {

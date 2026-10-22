@@ -17,7 +17,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.j01000011.nyumba.domain.model.UserRole
 import com.j01000011.nyumba.presentation.auth.AuthViewModel
 import com.j01000011.nyumba.ui.theme.BrandGold

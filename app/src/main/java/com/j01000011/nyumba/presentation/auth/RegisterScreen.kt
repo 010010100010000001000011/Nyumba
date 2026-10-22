@@ -21,7 +21,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.j01000011.nyumba.domain.model.UserRole
 import com.j01000011.nyumba.ui.components.InlineMessage
 import com.j01000011.nyumba.ui.components.NyumbaTextField

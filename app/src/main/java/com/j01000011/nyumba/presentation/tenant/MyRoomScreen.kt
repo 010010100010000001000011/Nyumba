@@ -1,20 +1,25 @@
 package com.j01000011.nyumba.presentation.tenant
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Business
+import androidx.compose.material.icons.filled.Apartment
+import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.MeetingRoom
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.j01000011.nyumba.presentation.auth.AuthViewModel
 import com.j01000011.nyumba.presentation.rooms.RoomViewModel
+import com.j01000011.nyumba.ui.components.*
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MyRoomScreen(
     onNavigateBack: () -> Unit,
@@ -24,79 +29,73 @@ fun MyRoomScreen(
     val user by authViewModel.currentUser.collectAsState()
     val room by roomViewModel.selectedRoom.collectAsState()
     val house by roomViewModel.selectedHouse.collectAsState()
+    val context = LocalContext.current
 
     LaunchedEffect(user) {
         user?.currentRoomId?.let { roomViewModel.loadRoomById(it) }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("My Room") },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                }
+    Scaffold(topBar = { NyumbaTopBar(title = "My room", onBack = onNavigateBack) }) { padding ->
+        val u = user
+        val r = room
+        when {
+            u != null && u.currentRoomId == null -> EmptyState(
+                icon = Icons.Default.MeetingRoom,
+                title = "No room yet",
+                message = "Once a landlord approves your request, your room details will appear here.",
+                modifier = Modifier.padding(padding)
             )
-        }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            if (user?.currentRoomId == null) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("You are not currently assigned to a room.")
+            r == null -> LoadingState(Modifier.padding(padding))
+            else -> Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                HeroCard {
+                    Text("Your room", style = MaterialTheme.typography.labelLarge, color = LocalContentColor.current.copy(alpha = 0.8f))
+                    Text(r.roomName, style = MaterialTheme.typography.headlineMedium)
+                    house?.let { Text(it.name, style = MaterialTheme.typography.bodyMedium, color = LocalContentColor.current.copy(alpha = 0.85f)) }
                 }
-            } else {
-                room?.let { r ->
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.MeetingRoom, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary)
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Column {
-                                Text(r.roomName, style = MaterialTheme.typography.headlineSmall)
-                                Text("Monthly Rent: K${r.monthlyRent}", style = MaterialTheme.typography.bodyMedium)
-                            }
-                        }
-                    }
 
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text("Room Details", style = MaterialTheme.typography.titleMedium)
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(r.description)
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text("Capacity: ${r.capacity} tenants")
-                            Text("Current Occupancy: ${r.occupiedCount}")
-                        }
+                SurfaceCard {
+                    Text("Tenancy", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(4.dp))
+                    InfoRow("Monthly rent", formatKwacha(u?.monthlyRent?.takeIf { it > 0 } ?: r.monthlyRent))
+                    u?.let { InfoRow("Rent due", "Day ${it.paymentDueDay} of each month") }
+                    InfoRow("Room shared by", "${r.occupiedCount} of ${r.capacity} tenant(s)")
+                    if (r.description.isNotBlank()) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(r.description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    
-                    house?.let { h ->
-                        Card(modifier = Modifier.fillMaxWidth()) {
-                            Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Business, contentDescription = null, modifier = Modifier.size(32.dp))
-                                Spacer(modifier = Modifier.width(16.dp))
-                                Column {
-                                    Text(h.name, style = MaterialTheme.typography.titleMedium)
-                                    Text(h.address, style = MaterialTheme.typography.bodySmall)
-                                    Text("Contact: ${h.phone}", style = MaterialTheme.typography.bodySmall)
+                }
+
+                house?.let { h ->
+                    SurfaceCard {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconBadge(Icons.Default.Apartment, tone = Tone.Brand)
+                            Spacer(Modifier.width(14.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(h.name, style = MaterialTheme.typography.titleMedium)
+                                if (h.address.isNotBlank()) {
+                                    Text(h.address, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
+                            if (h.phone.isNotBlank()) {
+                                FilledTonalIconButton(onClick = {
+                                    context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:${h.phone}")))
+                                }) { Icon(Icons.Default.Call, contentDescription = "Call ${h.name}") }
+                            }
                         }
-                    } ?: Card(modifier = Modifier.fillMaxWidth()) {
-                        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                            CircularProgressIndicator(modifier = Modifier.size(24.dp))
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Text("Loading house details...", style = MaterialTheme.typography.bodySmall)
+                        if (h.houseRules.isNotBlank()) {
+                            HorizontalDivider(Modifier.padding(vertical = 12.dp))
+                            Text("House rules", style = MaterialTheme.typography.titleSmall)
+                            Spacer(Modifier.height(4.dp))
+                            Text(h.houseRules, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
-                } ?: Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
                 }
             }
         }

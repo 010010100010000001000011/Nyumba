@@ -100,6 +100,15 @@ class AuthViewModel @Inject constructor(
         }
     }
 
+    /** Sends a Firebase password-reset email; [onResult] receives null on success or an error message. */
+    fun sendPasswordReset(email: String, onResult: (String?) -> Unit) {
+        viewModelScope.launch {
+            authRepository.sendPasswordReset(email.trim())
+                .onSuccess { onResult(null) }
+                .onFailure { onResult(it.message ?: "Could not send reset email") }
+        }
+    }
+
     fun clearState() {
         _authState.value = AuthState.Idle
     }

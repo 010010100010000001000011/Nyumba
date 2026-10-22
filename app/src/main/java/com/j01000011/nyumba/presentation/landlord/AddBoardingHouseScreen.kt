@@ -1,17 +1,25 @@
 package com.j01000011.nyumba.presentation.landlord
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AddHome
+import androidx.compose.material.icons.filled.Apartment
+import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.j01000011.nyumba.presentation.auth.AuthViewModel
+import com.j01000011.nyumba.ui.components.*
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddBoardingHouseScreen(
     onNavigateBack: () -> Unit,
@@ -21,7 +29,7 @@ fun AddBoardingHouseScreen(
     var name by remember { mutableStateOf("") }
     var address by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
-
+    var submitted by remember { mutableStateOf(false) }
     val user by authViewModel.currentUser.collectAsState()
     val createState by switcherViewModel.createState.collectAsState()
 
@@ -32,75 +40,52 @@ fun AddBoardingHouseScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Add Boarding House") },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                }
-            )
+    val save = {
+        submitted = true
+        val uid = user?.uid
+        if (uid != null && name.isNotBlank() && address.isNotBlank() && phone.isNotBlank()) {
+            switcherViewModel.createBoardingHouse(name.trim(), address.trim(), phone.trim(), uid)
         }
-    ) { padding ->
+    }
+
+    Scaffold(topBar = { NyumbaTopBar(title = "Add boarding house", onBack = onNavigateBack) }) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .imePadding()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text("Boarding House Name") },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = createState !is CreateHouseState.Loading
+            NyumbaTextField(
+                value = name, onValueChange = { name = it }, label = "House name",
+                leadingIcon = Icons.Default.Apartment, placeholder = "e.g. Kabulonga Lodge",
+                isError = submitted && name.isBlank(), supportingText = if (submitted && name.isBlank()) "Enter a name" else null
             )
-
-            OutlinedTextField(
-                value = address,
-                onValueChange = { address = it },
-                label = { Text("Address") },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = createState !is CreateHouseState.Loading
+            NyumbaTextField(
+                value = address, onValueChange = { address = it }, label = "Address / area",
+                leadingIcon = Icons.Default.LocationOn, placeholder = "Plot, street, area, town",
+                isError = submitted && address.isBlank(), supportingText = if (submitted && address.isBlank()) "Enter the address tenants will see" else null
             )
-
-            OutlinedTextField(
-                value = phone,
-                onValueChange = { phone = it },
-                label = { Text("Contact Phone Number") },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = createState !is CreateHouseState.Loading
+            NyumbaTextField(
+                value = phone, onValueChange = { phone = it }, label = "Contact phone",
+                leadingIcon = Icons.Default.Phone, keyboardType = KeyboardType.Phone,
+                imeAction = ImeAction.Done, onImeAction = save,
+                isError = submitted && phone.isBlank(), supportingText = if (submitted && phone.isBlank()) "Enter a contact number" else null
             )
-
-            if (createState is CreateHouseState.Error) {
-                Text(
-                    text = (createState as CreateHouseState.Error).message,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
-
-            Button(
-                onClick = {
-                    val uid = user?.uid ?: return@Button
-                    switcherViewModel.createBoardingHouse(name, address, phone, uid)
-                },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = name.isNotBlank() && address.isNotBlank() && phone.isNotBlank() && createState !is CreateHouseState.Loading
-            ) {
-                if (createState is CreateHouseState.Loading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        strokeWidth = 2.dp
-                    )
-                } else {
-                    Text("Save Boarding House")
-                }
-            }
+            InlineMessage(
+                text = "You can add a description and house rules after saving, from House details → Edit.",
+                icon = Icons.Default.Info,
+                tone = Tone.Info
+            )
+            (createState as? CreateHouseState.Error)?.let { InlineMessage(it.message, Icons.Default.ErrorOutline) }
+            PrimaryButton(
+                text = "Save boarding house",
+                onClick = save,
+                loading = createState is CreateHouseState.Loading,
+                icon = Icons.Default.AddHome
+            )
         }
     }
 }

@@ -1,94 +1,56 @@
 package com.j01000011.nyumba.presentation.notifications
 
-import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.*
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.viewModelScope
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.j01000011.nyumba.domain.model.Notification
 import com.j01000011.nyumba.domain.model.NotificationCategory
+import com.j01000011.nyumba.presentation.landlord.InitialsAvatar
+import com.j01000011.nyumba.presentation.landlord.TenantManagementViewModel
+import com.j01000011.nyumba.ui.components.NyumbaTopBar
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DirectNotificationScreen(
     tenantId: String,
     onNavigateBack: () -> Unit,
-    viewModel: NotificationViewModel = hiltViewModel()
+    viewModel: NotificationViewModel = hiltViewModel(),
+    tenantViewModel: TenantManagementViewModel = hiltViewModel()
 ) {
-    var title by remember { mutableStateOf("") }
-    var message by remember { mutableStateOf("") }
+    val tenant by tenantViewModel.selectedTenant.collectAsState()
     var isSending by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Send Direct Notice") },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                }
-            )
-        }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Text("To Tenant ID: $tenantId", style = MaterialTheme.typography.labelLarge)
+    LaunchedEffect(tenantId) {
+        tenantViewModel.loadTenantById(tenantId)
+    }
 
-            OutlinedTextField(
-                value = title,
-                onValueChange = { title = it },
-                label = { Text("Subject") },
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            OutlinedTextField(
-                value = message,
-                onValueChange = { message = it },
-                label = { Text("Message Body") },
-                modifier = Modifier.fillMaxWidth(),
-                minLines = 4
-            )
-
-            Button(
-                onClick = {
-                    isSending = true
-                    val notification = Notification(
+    Scaffold(topBar = { NyumbaTopBar(title = "Send notice", onBack = onNavigateBack) }) { padding ->
+        NoticeComposer(
+            recipientHeader = {
+                val name = tenant?.fullName ?: "Tenant"
+                RecipientCard(title = name, subtitle = "Appears in their notifications") { InitialsAvatar(name) }
+            },
+            sendLabel = "Send notice",
+            sending = isSending,
+            canSend = true,
+            modifier = Modifier.padding(padding)
+        ) { title, message ->
+            isSending = true
+            scope.launch {
+                viewModel.sendNotification(
+                    Notification(
                         tenantId = tenantId,
+                        boardingHouseId = tenant?.boardingHouseId,
                         title = title,
                         message = message,
                         category = NotificationCategory.GENERAL
                     )
-                    scope.launch {
-                        viewModel.sendNotification(notification)
-                        isSending = false
-                        onNavigateBack()
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = title.isNotBlank() && message.isNotBlank() && !isSending
-            ) {
-                if (isSending) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        strokeWidth = 2.dp
-                    )
-                } else {
-                    Text("Send Notification")
-                }
+                )
+                isSending = false
+                onNavigateBack()
             }
         }
     }

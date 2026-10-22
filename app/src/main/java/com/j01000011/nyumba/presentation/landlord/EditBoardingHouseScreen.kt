@@ -4,120 +4,103 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Apartment
+import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.j01000011.nyumba.presentation.auth.AuthViewModel
+import com.j01000011.nyumba.ui.components.*
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditBoardingHouseScreen(
     houseId: String,
     onNavigateBack: () -> Unit,
+    authViewModel: AuthViewModel = hiltViewModel(),
     viewModel: BoardingHouseSwitcherViewModel = hiltViewModel()
 ) {
+    val user by authViewModel.currentUser.collectAsState()
     val boardingHouses by viewModel.boardingHouses.collectAsState()
     val house = boardingHouses.find { it.boardingHouseId == houseId }
+
+    // This screen has its own ViewModel instance, so the house list must be loaded here.
+    LaunchedEffect(user) {
+        user?.let { viewModel.loadBoardingHouses(it.uid) }
+    }
 
     var name by remember { mutableStateOf("") }
     var address by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var houseRules by remember { mutableStateOf("") }
+    var loaded by remember { mutableStateOf(false) }
 
     LaunchedEffect(house) {
-        house?.let {
-            name = it.name
-            address = it.address
-            phone = it.phone
-            description = it.description
-            houseRules = it.houseRules
+        if (house != null && !loaded) {
+            name = house.name
+            address = house.address
+            phone = house.phone
+            description = house.description
+            houseRules = house.houseRules
+            loaded = true
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Edit Boarding House") },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                }
-            )
-        }
-    ) { padding ->
+    Scaffold(topBar = { NyumbaTopBar(title = "Edit house", subtitle = house?.name, onBack = onNavigateBack) }) { padding ->
         if (house == null) {
-            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
-        } else {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(16.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("House Name") },
-                    modifier = Modifier.fillMaxWidth()
-                )
+            LoadingState(Modifier.padding(padding))
+            return@Scaffold
+        }
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .imePadding()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            SectionHeader("Basics")
+            NyumbaTextField(value = name, onValueChange = { name = it }, label = "House name", leadingIcon = Icons.Default.Apartment, isError = name.isBlank())
+            NyumbaTextField(value = address, onValueChange = { address = it }, label = "Address / area", leadingIcon = Icons.Default.LocationOn)
+            NyumbaTextField(value = phone, onValueChange = { phone = it }, label = "Contact phone", leadingIcon = Icons.Default.Phone, keyboardType = KeyboardType.Phone)
 
-                OutlinedTextField(
-                    value = address,
-                    onValueChange = { address = it },
-                    label = { Text("Address") },
-                    modifier = Modifier.fillMaxWidth()
-                )
+            SectionHeader("Shown to tenants")
+            NyumbaTextField(
+                value = description, onValueChange = { description = it },
+                label = "Description", placeholder = "Location highlights, amenities, security...",
+                singleLine = false, minLines = 3
+            )
+            NyumbaTextField(
+                value = houseRules, onValueChange = { houseRules = it },
+                label = "House rules", placeholder = "Visiting hours, quiet times, cooking, cleaning...",
+                singleLine = false, minLines = 5
+            )
 
-                OutlinedTextField(
-                    value = phone,
-                    onValueChange = { phone = it },
-                    label = { Text("Contact Phone") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                OutlinedTextField(
-                    value = description,
-                    onValueChange = { description = it },
-                    label = { Text("Description") },
-                    modifier = Modifier.fillMaxWidth(),
-                    minLines = 3
-                )
-
-                OutlinedTextField(
-                    value = houseRules,
-                    onValueChange = { houseRules = it },
-                    label = { Text("House Rules") },
-                    modifier = Modifier.fillMaxWidth(),
-                    minLines = 5
-                )
-
-                Button(
-                    onClick = {
-                        val updated = house.copy(
-                            name = name,
-                            address = address,
-                            phone = phone,
-                            description = description,
-                            houseRules = houseRules,
+            PrimaryButton(
+                text = "Save changes",
+                icon = Icons.Default.Save,
+                enabled = name.isNotBlank(),
+                onClick = {
+                    viewModel.updateBoardingHouse(
+                        house.copy(
+                            name = name.trim(),
+                            address = address.trim(),
+                            phone = phone.trim(),
+                            description = description.trim(),
+                            houseRules = houseRules.trim(),
                             updatedAt = System.currentTimeMillis()
                         )
-                        viewModel.updateBoardingHouse(updated)
-                        onNavigateBack()
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Save Changes")
+                    )
+                    onNavigateBack()
                 }
-            }
+            )
+            Spacer(Modifier.height(8.dp))
         }
     }
 }

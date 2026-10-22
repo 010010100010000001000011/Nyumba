@@ -4,8 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.MeetingRoom
 import androidx.compose.material.icons.filled.Phone
@@ -13,12 +12,14 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.j01000011.nyumba.domain.model.Room
+import com.j01000011.nyumba.domain.model.RoomStatus
 import com.j01000011.nyumba.presentation.rooms.RoomViewModel
+import com.j01000011.nyumba.ui.components.*
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HouseRoomsDiscoveryScreen(
     houseId: String,
@@ -31,143 +32,105 @@ fun HouseRoomsDiscoveryScreen(
 
     LaunchedEffect(houseId) {
         roomViewModel.loadRooms(houseId)
+        roomViewModel.loadHouseById(houseId)
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(house?.name ?: "Boarding House Rooms") },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+    // Count holds as taken; hide rooms closed for maintenance
+    val availableRooms = rooms.filter { it.availableCount > 0 && it.status == RoomStatus.AVAILABLE }
+
+    Scaffold(topBar = { NyumbaTopBar(title = house?.name ?: "Rooms", onBack = onNavigateBack) }) { padding ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(padding),
+            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            house?.let { h ->
+                item {
+                    HeroCard {
+                        Text(h.name, style = MaterialTheme.typography.headlineSmall)
+                        if (h.address.isNotBlank()) {
+                            Spacer(Modifier.height(6.dp))
+                            IconLine(Icons.Default.LocationOn, h.address)
+                        }
+                        if (h.phone.isNotBlank()) {
+                            Spacer(Modifier.height(4.dp))
+                            IconLine(Icons.Default.Phone, h.phone)
+                        }
+                        if (h.description.isNotBlank()) {
+                            Spacer(Modifier.height(12.dp))
+                            Text(h.description, style = MaterialTheme.typography.bodyMedium, color = LocalContentColor.current.copy(alpha = 0.9f))
+                        }
                     }
                 }
-            )
-        }
-    ) { padding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            item {
-                house?.let { h ->
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text(
-                                text = h.name,
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            if (h.address.isNotBlank()) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.LocationOn, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(h.address, style = MaterialTheme.typography.bodyMedium)
-                                }
+                if (h.houseRules.isNotBlank()) {
+                    item {
+                        SurfaceCard {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconBadge(Icons.Default.Gavel, tone = Tone.Warning, size = 36)
+                                Spacer(Modifier.width(12.dp))
+                                Text("House rules", style = MaterialTheme.typography.titleMedium)
                             }
-                            if (h.phone.isNotBlank()) {
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.Phone, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    Text(h.phone, style = MaterialTheme.typography.bodyMedium)
-                                }
-                            }
-                            if (h.description.isNotBlank()) {
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(h.description, style = MaterialTheme.typography.bodySmall)
-                            }
-                            if (h.houseRules.isNotBlank()) {
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text("House Rules: ${h.houseRules}", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
-                            }
+                            Spacer(Modifier.height(8.dp))
+                            Text(h.houseRules, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
             }
-
-            item {
-                Text(
-                    text = "Rooms in this Boarding House",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            val availableRooms = rooms.filter { (it.capacity - it.occupiedCount) > 0 }
-
+            item { SectionHeader("Available rooms (${availableRooms.size})") }
             if (availableRooms.isEmpty()) {
                 item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(24.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.MeetingRoom, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.secondary)
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text("No available rooms in this boarding house at the moment.")
-                        }
-                    }
+                    EmptyState(
+                        icon = Icons.Default.MeetingRoom,
+                        title = "Fully booked",
+                        message = "There are no free beds here right now. Check back soon or try another house."
+                    )
                 }
             } else {
-                items(availableRooms) { room ->
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        onClick = { onRoomSelected(room.roomId) }
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(room.roomName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                                Surface(
-                                    color = MaterialTheme.colorScheme.secondaryContainer,
-                                    shape = MaterialTheme.shapes.small
-                                ) {
-                                    Text(
-                                        text = "K${room.monthlyRent} / mo",
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "Spaces Available: ${room.capacity - room.occupiedCount} / ${room.capacity}",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-
-                            if (room.description.isNotBlank()) {
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(room.description, style = MaterialTheme.typography.bodySmall)
-                            }
-
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Button(
-                                onClick = { onRoomSelected(room.roomId) },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text("Select Room & Request")
-                            }
-                        }
-                    }
+                items(availableRooms, key = { it.roomId }) { room ->
+                    AvailableRoomCard(room = room, onClick = { onRoomSelected(room.roomId) })
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun IconLine(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, contentDescription = null, modifier = Modifier.size(16.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(text, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+@Composable
+fun AvailableRoomCard(room: Room, onClick: () -> Unit) {
+    SurfaceCard(onClick = onClick) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconBadge(Icons.Default.MeetingRoom, tone = Tone.Brand)
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text(room.roomName, style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "${room.availableCount} of ${room.capacity} bed(s) free",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(formatKwacha(room.monthlyRent), style = MaterialTheme.typography.titleMedium)
+                Text("per month", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        if (room.description.isNotBlank()) {
+            Spacer(Modifier.height(10.dp))
+            Text(
+                room.description,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }

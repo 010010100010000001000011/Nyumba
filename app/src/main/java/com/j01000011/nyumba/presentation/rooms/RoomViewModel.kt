@@ -75,7 +75,7 @@ class RoomViewModel @Inject constructor(
         }
     }
 
-    private fun loadHouseById(houseId: String) {
+    fun loadHouseById(houseId: String) {
         viewModelScope.launch {
             boardingHouseRepository.getBoardingHouseById(houseId)
                 .onSuccess { _selectedHouse.value = it }

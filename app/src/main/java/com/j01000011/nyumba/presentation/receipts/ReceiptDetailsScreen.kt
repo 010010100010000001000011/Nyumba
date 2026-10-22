@@ -1,20 +1,29 @@
 package com.j01000011.nyumba.presentation.receipts
 
+import android.content.Intent
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.j01000011.nyumba.domain.model.PaymentMethod
+import com.j01000011.nyumba.domain.model.Receipt
+import com.j01000011.nyumba.ui.components.*
 import java.text.SimpleDateFormat
 import java.util.*
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReceiptDetailsScreen(
     receiptId: String,
@@ -23,6 +32,7 @@ fun ReceiptDetailsScreen(
 ) {
     val receipt by viewModel.selectedReceipt.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
 
     LaunchedEffect(receiptId) {
         viewModel.loadReceiptById(receiptId)
@@ -30,124 +40,110 @@ fun ReceiptDetailsScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Receipt Details") },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+            NyumbaTopBar(
+                title = "Receipt",
+                onBack = onNavigateBack,
+                actions = {
+                    receipt?.let { r ->
+                        IconButton(onClick = {
+                            val send = Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_SUBJECT, "Nyumba receipt ${r.receiptNumber}")
+                                putExtra(Intent.EXTRA_TEXT, r.asShareText())
+                            }
+                            context.startActivity(Intent.createChooser(send, "Share receipt"))
+                        }) { Icon(Icons.Default.Share, contentDescription = "Share receipt") }
                     }
                 }
             )
         }
     ) { padding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
-            if (uiState is ReceiptUiState.Loading) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-            } else if (uiState is ReceiptUiState.Error) {
-                Text(
-                    text = (uiState as ReceiptUiState.Error).message,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.align(Alignment.Center)
-                )
-            } else {
-                receipt?.let { r ->
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .padding(24.dp)
-                                    .fillMaxWidth(),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Text(
-                                    text = "OFFICIAL RECEIPT",
-                                    style = MaterialTheme.typography.headlineSmall,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = "Nyumba Management",
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                                Spacer(modifier = Modifier.height(24.dp))
-                                
-                                ReceiptRow("Receipt No:", r.receiptNumber)
-                                ReceiptRow("Date:", SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault()).format(Date(r.paymentDate)))
-                                HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
-                                
-                                ReceiptRow("Tenant Name:", r.tenantName)
-                                ReceiptRow("Room:", r.roomName)
-                                ReceiptRow("Payment Method:", r.paymentMethod.name)
-                                
-                                if (!r.transactionId.isNullOrBlank()) {
-                                    ReceiptRow("Transaction ID:", r.transactionId)
-                                }
-                                
-                                Spacer(modifier = Modifier.height(24.dp))
-                                
-                                Text(
-                                    text = "Amount Paid",
-                                    style = MaterialTheme.typography.labelLarge
-                                )
-                                Text(
-                                    text = "K${String.format(Locale.getDefault(), "%.2f", r.amountPaid)}",
-                                    style = MaterialTheme.typography.displaySmall,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                
-                                Spacer(modifier = Modifier.height(16.dp))
-                                
-                                if (r.remainingBalance > 0) {
-                                    Text(
-                                        text = "Remaining Balance: K${String.format(Locale.getDefault(), "%.2f", r.remainingBalance)}",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.error
-                                    )
-                                } else {
-                                    Text(
-                                        text = "RENT FULLY PAID",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-                        }
-                        
-                        Spacer(modifier = Modifier.height(32.dp))
+        val r = receipt
+        when {
+            uiState is ReceiptUiState.Error -> Box(Modifier.padding(padding).padding(20.dp)) {
+                InlineMessage(text = (uiState as ReceiptUiState.Error).message, icon = Icons.Default.ErrorOutline)
+            }
+            r == null -> LoadingState(Modifier.padding(padding))
+            else -> Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                HeroCard {
+                    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(40.dp))
+                        Spacer(Modifier.height(8.dp))
+                        Text("Payment received", style = MaterialTheme.typography.titleMedium)
+                        Spacer(Modifier.height(4.dp))
+                        Text(formatKwacha(r.amountPaid), style = MaterialTheme.typography.displaySmall)
+                        Spacer(Modifier.height(4.dp))
                         Text(
-                            text = "Thank you for your payment!",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.secondary
+                            SimpleDateFormat("EEEE, d MMMM yyyy · HH:mm", Locale.getDefault()).format(Date(r.paymentDate)),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = LocalContentColor.current.copy(alpha = 0.85f),
+                            textAlign = TextAlign.Center
                         )
                     }
                 }
+
+                SurfaceCard {
+                    Text("Details", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(4.dp))
+                    InfoRow("Receipt no.", r.receiptNumber)
+                    InfoRow("Tenant", r.tenantName)
+                    InfoRow("Room", r.roomName)
+                    InfoRow("Method", if (r.paymentMethod == PaymentMethod.MOBILE_MONEY) "Mobile money" else "Cash")
+                    r.transactionId?.takeIf { it.isNotBlank() }?.let { InfoRow("Transaction ID", it) }
+                }
+
+                SurfaceCard {
+                    Text("Balance", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(4.dp))
+                    if (r.previousBalance > 0) InfoRow("Before this payment", formatKwacha(r.previousBalance))
+                    InfoRow("Amount paid", formatKwacha(r.amountPaid))
+                    HorizontalDivider(Modifier.padding(vertical = 6.dp))
+                    InfoRow("Remaining", formatKwacha(r.remainingBalance))
+                }
+
+                val settled = r.remainingBalance <= 0
+                InlineMessage(
+                    text = if (settled) "Rent fully paid. Thank you!" else "${formatKwacha(r.remainingBalance)} still outstanding on your rent schedule.",
+                    icon = if (settled) Icons.Default.CheckCircle else Icons.Default.Info,
+                    tone = if (settled) Tone.Success else Tone.Warning
+                )
+
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.surfaceContainerLow, MaterialTheme.shapes.medium)
+                        .padding(12.dp)
+                ) {
+                    Text(
+                        "Issued by Nyumba on behalf of your landlord. Keep this receipt for your records.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
             }
         }
     }
 }
 
-@Composable
-fun ReceiptRow(label: String, value: String) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(text = label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(text = value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-    }
+private fun Receipt.asShareText(): String = buildString {
+    val date = SimpleDateFormat("d MMM yyyy, HH:mm", Locale.getDefault()).format(Date(paymentDate))
+    appendLine("NYUMBA RENT RECEIPT")
+    appendLine("Receipt no: $receiptNumber")
+    appendLine("Date: $date")
+    appendLine("Tenant: $tenantName")
+    appendLine("Room: $roomName")
+    appendLine("Amount paid: ${formatKwacha(amountPaid)}")
+    appendLine("Method: ${if (paymentMethod == PaymentMethod.MOBILE_MONEY) "Mobile money" else "Cash"}")
+    transactionId?.takeIf { it.isNotBlank() }?.let { appendLine("Transaction ID: $it") }
+    append("Remaining balance: ${formatKwacha(remainingBalance)}")
 }

@@ -8,6 +8,7 @@ import androidx.compose.material.icons.automirrored.filled.Login
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Mail
+import androidx.compose.material.icons.filled.MarkEmailRead
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -16,11 +17,12 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.j01000011.nyumba.domain.model.UserRole
 import com.j01000011.nyumba.ui.components.InlineMessage
 import com.j01000011.nyumba.ui.components.NyumbaTextField
 import com.j01000011.nyumba.ui.components.PrimaryButton
+import com.j01000011.nyumba.ui.components.Tone
 
 @Composable
 fun LoginScreen(
@@ -32,6 +34,7 @@ fun LoginScreen(
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var submitted by remember { mutableStateOf(false) }
+    var resetMessage by remember { mutableStateOf<Pair<String, Boolean>?>(null) } // text, isError
     val authState by viewModel.authState.collectAsState()
     val focusManager = LocalFocusManager.current
 
@@ -91,6 +94,26 @@ fun LoginScreen(
                 isError = passwordError,
                 supportingText = if (passwordError) "Enter your password" else null
             )
+
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
+                TextButton(onClick = {
+                    if (!isValidEmail(email)) {
+                        resetMessage = "Enter your email above, then tap Forgot password." to true
+                    } else {
+                        viewModel.sendPasswordReset(email) { error ->
+                            resetMessage = (error ?: "Password reset link sent to ${email.trim()}.") to (error != null)
+                        }
+                    }
+                }) { Text("Forgot password?") }
+            }
+
+            resetMessage?.let { (text, isError) ->
+                InlineMessage(
+                    text = text,
+                    icon = if (isError) Icons.Default.ErrorOutline else Icons.Default.MarkEmailRead,
+                    tone = if (isError) Tone.Warning else Tone.Success
+                )
+            }
 
             (authState as? AuthState.Error)?.let {
                 InlineMessage(text = friendlyAuthError(it.message), icon = Icons.Default.ErrorOutline)

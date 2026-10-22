@@ -18,5 +18,6 @@ interface AuthRepository {
         emergencyContactPhone: String = ""
     ): Result<User>
     suspend fun logout()
+    suspend fun sendPasswordReset(email: String): Result<Unit>
     suspend fun getProfile(uid: String): Result<User>
 }

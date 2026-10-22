@@ -4,19 +4,20 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.automirrored.filled.Assignment
+import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.j01000011.nyumba.domain.model.AuditLog
+import com.j01000011.nyumba.ui.components.*
 import java.text.SimpleDateFormat
 import java.util.*
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AuditLogScreen(
     houseId: String,
@@ -29,32 +30,26 @@ fun AuditLogScreen(
         viewModel.loadLogs(houseId)
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Audit History") },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                }
-            )
-        }
-    ) { padding ->
+    val dayFormat = remember { SimpleDateFormat("EEEE, d MMM yyyy", Locale.getDefault()) }
+    val grouped = logs.groupBy { dayFormat.format(Date(it.timestamp)) }
+
+    Scaffold(topBar = { NyumbaTopBar(title = "Audit log", subtitle = "Every change in this house", onBack = onNavigateBack) }) { padding ->
         if (logs.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Text("No audit records found.")
-            }
+            EmptyState(
+                icon = Icons.Default.History,
+                title = "No activity yet",
+                message = "Room changes, payments, approvals and other actions are recorded here.",
+                modifier = Modifier.padding(padding)
+            )
         } else {
             LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(16.dp),
+                modifier = Modifier.fillMaxSize().padding(padding),
+                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(logs) { log ->
-                    AuditLogItem(log)
+                grouped.forEach { (day, dayLogs) ->
+                    item(key = "h-$day") { SectionHeader(day) }
+                    items(dayLogs, key = { it.logId }) { log -> AuditLogItem(log) }
                 }
             }
         }
@@ -63,19 +58,36 @@ fun AuditLogScreen(
 
 @Composable
 fun AuditLogItem(log: AuditLog) {
-    val dateStr = SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault()).format(Date(log.timestamp))
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.History, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(log.action, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-            }
-            Text("Entity: ${log.entityType} (${log.entityId})", style = MaterialTheme.typography.bodySmall)
-            Text("Date: $dateStr", style = MaterialTheme.typography.bodySmall)
-            if (log.metadata.isNotEmpty()) {
-                Text("Metadata: ${log.metadata}", style = MaterialTheme.typography.bodySmall)
-            }
-        }
-    }
+    val (icon, tone) = auditStyle(log.action)
+    ListItem(
+        headlineContent = { Text(humanize(log.action), style = MaterialTheme.typography.titleSmall) },
+        supportingContent = {
+            val details = log.metadata.entries.joinToString(" · ") { (k, v) -> "${humanize(k)}: $v" }
+            Text(
+                listOf(humanize(log.entityType), details).filter { it.isNotBlank() }.joinToString(" · "),
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 2
+            )
+        },
+        leadingContent = { IconBadge(icon, tone = tone, size = 40) },
+        trailingContent = {
+            Text(
+                SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(log.timestamp)),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        },
+        colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLowest),
+        modifier = Modifier.padding(vertical = 0.dp)
+    )
+}
+
+private fun auditStyle(action: String): Pair<ImageVector, Tone> = when {
+    action.startsWith("PAYMENT") -> Icons.Default.Payments to Tone.Success
+    action.startsWith("ROOM_REQUEST") -> Icons.AutoMirrored.Filled.Assignment to Tone.Info
+    action.startsWith("ROOM") -> Icons.Default.MeetingRoom to Tone.Brand
+    action.startsWith("COMPLAINT") -> Icons.Default.ReportProblem to Tone.Warning
+    action.startsWith("TENANT") -> Icons.Default.Person to Tone.Danger
+    action.startsWith("CONVERSATION") || action.startsWith("MESSAGE") -> Icons.AutoMirrored.Filled.Chat to Tone.Info
+    else -> Icons.Default.History to Tone.Neutral
 }
