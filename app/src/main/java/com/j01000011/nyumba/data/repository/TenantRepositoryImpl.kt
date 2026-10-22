@@ -75,7 +75,8 @@ class TenantRepositoryImpl @Inject constructor(
             transaction.update(userRef, 
                 "isActive", false, 
                 "currentRoomId", null,
-                "boardingHouseId", null
+                "boardingHouseId", null,
+                "landlordId", null
             )
             null
         }.await()
@@ -97,11 +98,6 @@ class TenantRepositoryImpl @Inject constructor(
             "roomRequests", "payments", "receipts", "rentPeriods", "complaints", "notifications"
         )
 
-        firestore.runTransaction { transaction ->
-            transaction.delete(firestore.collection("users").document(tenantId))
-            null
-        }.await()
-
         // 1. Delete simple documents
         for (collection in collectionsToDeleteFrom) {
             val snapshot = firestore.collection(collection).whereEqualTo("tenantId", tenantId).get().await()
@@ -118,6 +114,9 @@ class TenantRepositoryImpl @Inject constructor(
             senderMessages.documents.forEach { batch.delete(it.reference) }
             receiverMessages.documents.forEach { batch.delete(it.reference) }
         }.await()
+
+        // Deleted last: security rules authorise the deletes above via the tenant's boardingHouseId
+        firestore.collection("users").document(tenantId).delete().await()
 
         auditRepository.recordLog(AuditLog(
             action = "TENANT_RECORDS_DELETED",

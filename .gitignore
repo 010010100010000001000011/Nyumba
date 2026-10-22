@@ -13,3 +13,7 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# API collections / secrets
+*.postman_collection.json
+*.postman_environment.json

@@ -212,11 +212,12 @@ class RentRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun checkAndSendRentReminders(): Result<Int> = try {
+    override suspend fun checkAndSendRentReminders(tenantId: String): Result<Int> = try {
         val now = System.currentTimeMillis()
         val oneDayMs = 24 * 60 * 60 * 1000L
         
         val periods = firestore.collection("rentPeriods")
+            .whereEqualTo("tenantId", tenantId)
             .whereIn("status", listOf(RentStatus.UNPAID.name, RentStatus.PARTIALLY_PAID.name, RentStatus.OVERDUE.name))
             .get().await().toObjects(RentPeriod::class.java)
 

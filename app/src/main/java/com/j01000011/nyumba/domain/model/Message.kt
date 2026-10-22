@@ -1,5 +1,7 @@
 package com.j01000011.nyumba.domain.model
 
+import com.google.firebase.firestore.PropertyName
+
 data class Message(
     val messageId: String = "",
     val conversationId: String = "",
@@ -10,5 +12,6 @@ data class Message(
     val readAt: Long? = null,
     val deletedForSender: Boolean = false,
     val deletedForReceiver: Boolean = false,
-    val isDeleted: Boolean = false
+    @get:PropertyName("isDeleted") @set:PropertyName("isDeleted")
+    var isDeleted: Boolean = false
 )

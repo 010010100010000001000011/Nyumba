@@ -1,5 +1,7 @@
 package com.j01000011.nyumba.domain.model
 
+import com.google.firebase.firestore.PropertyName
+
 data class Notification(
     val notificationId: String = "",
     val tenantId: String? = null,
@@ -8,7 +10,9 @@ data class Notification(
     val title: String = "",
     val message: String = "",
     val category: NotificationCategory = NotificationCategory.GENERAL,
-    val isRead: Boolean = false,
+    // Without @PropertyName, Firestore stores Kotlin "isX" booleans as "x" and never reads them back
+    @get:PropertyName("isRead") @set:PropertyName("isRead")
+    var isRead: Boolean = false,
     val createdAt: Long = System.currentTimeMillis()
 )
 

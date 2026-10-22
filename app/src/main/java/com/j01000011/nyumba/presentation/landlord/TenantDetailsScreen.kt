@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.j01000011.nyumba.domain.model.Room
 import com.j01000011.nyumba.domain.model.RoomStatus
+import com.j01000011.nyumba.presentation.auth.AuthViewModel
 import com.j01000011.nyumba.presentation.messages.MessageUiState
 import com.j01000011.nyumba.presentation.messages.MessageViewModel
 import com.j01000011.nyumba.presentation.payments.RentViewModel
@@ -38,13 +39,15 @@ fun TenantDetailsScreen(
     viewModel: TenantManagementViewModel = hiltViewModel(),
     rentViewModel: RentViewModel = hiltViewModel(),
     messageViewModel: MessageViewModel = hiltViewModel(),
-    roomViewModel: RoomViewModel = hiltViewModel()
+    roomViewModel: RoomViewModel = hiltViewModel(),
+    authViewModel: AuthViewModel = hiltViewModel()
 ) {
     val tenant by viewModel.selectedTenant.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
     val rentPeriods by rentViewModel.rentPeriods.collectAsState()
     val messageUiState by messageViewModel.uiState.collectAsState()
     val rooms by roomViewModel.rooms.collectAsState()
+    val landlord by authViewModel.currentUser.collectAsState()
 
     var monthlyRent by remember { mutableStateOf("") }
     var dueDay by remember { mutableStateOf("") }
@@ -85,13 +88,15 @@ fun TenantDetailsScreen(
                 },
                 actions = {
                     IconButton(onClick = {
-                        tenant?.let { t ->
+                        val l = landlord
+                        val t = tenant
+                        if (l != null && t != null) {
                             messageViewModel.getOrCreateConversation(
                                 tenantId = t.uid,
-                                landlordId = t.landlordId ?: "",
+                                landlordId = l.uid,
                                 boardingHouseId = t.boardingHouseId ?: "",
                                 tenantName = t.fullName,
-                                landlordName = "Landlord"
+                                landlordName = l.fullName.ifBlank { "Landlord" }
                             )
                         }
                     }) {

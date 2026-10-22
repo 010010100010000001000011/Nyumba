@@ -250,6 +250,10 @@ class RoomRepositoryImpl @Inject constructor(
                     throw Exception("Room is already at full capacity")
                 }
 
+                val houseRef = firestore.collection("boardingHouses").document(request.boardingHouseId)
+                val landlordId = transaction.get(houseRef).getString("landlordId")
+                    ?: throw Exception("Boarding house not found")
+
                 val newOccupiedCount = room.occupiedCount + 1
                 val newHeldCount = if (request.status == RoomRequestStatus.HOLDING) maxOf(0, room.heldCount - 1) else room.heldCount
                 val newStatus = if (newOccupiedCount >= room.capacity) RoomStatus.FULL else RoomStatus.AVAILABLE
@@ -266,6 +270,7 @@ class RoomRepositoryImpl @Inject constructor(
                 transaction.update(userRef, 
                     "currentRoomId", request.roomId, 
                     "boardingHouseId", request.boardingHouseId,
+                    "landlordId", landlordId,
                     "monthlyRent", room.monthlyRent,
                     "paymentDueDay", paymentDueDay
                 )
@@ -303,10 +308,16 @@ class RoomRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun cleanupExpiredHolds(): Result<Int> {
+    override suspend fun cleanupExpiredHolds(tenantId: String?, boardingHouseId: String?): Result<Int> {
         return try {
+            require((tenantId == null) != (boardingHouseId == null)) { "Specify exactly one of tenantId or boardingHouseId" }
             val now = System.currentTimeMillis()
-            val expiredSnapshots = firestore.collection("roomRequests")
+            val scoped = if (tenantId != null) {
+                firestore.collection("roomRequests").whereEqualTo("tenantId", tenantId)
+            } else {
+                firestore.collection("roomRequests").whereEqualTo("boardingHouseId", boardingHouseId)
+            }
+            val expiredSnapshots = scoped
                 .whereEqualTo("status", RoomRequestStatus.HOLDING.name)
                 .whereLessThan("holdUntil", now)
                 .get()
@@ -316,15 +327,19 @@ class RoomRepositoryImpl @Inject constructor(
             for (doc in expiredSnapshots.documents) {
                 val request = doc.toObject(RoomRequest::class.java) ?: continue
                 
-                firestore.runTransaction { transaction ->
+                val expired = firestore.runTransaction { transaction ->
+                    // Re-check inside the transaction: the hold may have been approved since the query ran
+                    val current = transaction.get(doc.reference).toObject(RoomRequest::class.java)
+                    if (current?.status != RoomRequestStatus.HOLDING) return@runTransaction false
+
                     val roomRef = firestore.collection("rooms").document(request.roomId)
                     val room = transaction.get(roomRef).toObject(Room::class.java) ?: throw Exception("Room not found")
                     
                     transaction.update(doc.reference, "status", RoomRequestStatus.EXPIRED.name, "updatedAt", now)
                     transaction.update(roomRef, "heldCount", maxOf(0, room.heldCount - 1), "updatedAt", now)
-                    null
+                    true
                 }.await()
-                updatedCount++
+                if (expired) updatedCount++
             }
 
             Result.success(updatedCount)

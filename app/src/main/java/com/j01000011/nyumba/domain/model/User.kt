@@ -1,5 +1,7 @@
 package com.j01000011.nyumba.domain.model
 
+import com.google.firebase.firestore.PropertyName
+
 data class User(
     val uid: String = "",
     val fullName: String = "",
@@ -15,6 +17,7 @@ data class User(
     val fcmToken: String? = null,
     val monthlyRent: Double = 0.0,
     val paymentDueDay: Int = 1,
-    val isActive: Boolean = true,
+    @get:PropertyName("isActive") @set:PropertyName("isActive")
+    var isActive: Boolean = true,
     val createdAt: Long = System.currentTimeMillis()
 )

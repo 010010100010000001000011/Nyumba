@@ -24,6 +24,7 @@ interface RoomRepository {
     ): Result<String>
     suspend fun updateRoomRequestStatus(requestId: String, status: String): Result<Unit>
     suspend fun approveRoomRequest(requestId: String, paymentDueDay: Int = 1): Result<Unit>
-    suspend fun cleanupExpiredHolds(): Result<Int>
+    /** Expires stale holds for one tenant or one boarding house (exactly one must be non-null). */
+    suspend fun cleanupExpiredHolds(tenantId: String? = null, boardingHouseId: String? = null): Result<Int>
     suspend fun changeTenantRoom(tenantId: String, oldRoomId: String?, newRoomId: String): Result<Unit>
 }

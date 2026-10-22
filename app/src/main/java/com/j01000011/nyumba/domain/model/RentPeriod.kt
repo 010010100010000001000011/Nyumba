@@ -1,5 +1,6 @@
 package com.j01000011.nyumba.domain.model
 
+import com.google.firebase.firestore.Exclude
 import java.util.Calendar
 
 data class RentPeriod(
@@ -16,8 +17,10 @@ data class RentPeriod(
     val updatedAt: Long = System.currentTimeMillis(),
     val sentReminders: List<String> = emptyList() // Tracks stages like "7_DAY", "3_DAY", "DUE_DAY", "OVERDUE_1"
 ) {
+    @get:Exclude
     val remainingBalance: Double get() = maxOf(0.0, amountDue - amountPaid)
 
+    @get:Exclude
     val isCurrentOrPastDue: Boolean
         get() {
             val now = System.currentTimeMillis()

@@ -12,5 +12,5 @@ interface RentRepository {
     fun getLandlordPayments(boardingHouseId: String): Flow<List<Payment>>
     suspend fun recordPayment(payment: Payment): Result<Unit>
     suspend fun generateInitialRentPeriods(tenant: User): Result<Unit>
-    suspend fun checkAndSendRentReminders(): Result<Int>
+    suspend fun checkAndSendRentReminders(tenantId: String): Result<Int>
 }

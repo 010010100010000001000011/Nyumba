@@ -9,5 +9,5 @@ interface ComplaintRepository {
     suspend fun getComplaintById(complaintId: String): Result<Complaint>
     suspend fun submitComplaint(complaint: Complaint): Result<String>
     suspend fun updateComplaintStatus(complaintId: String, status: String, comment: String? = null): Result<Unit>
-    suspend fun checkAndSendComplaintReminders(): Result<Int>
+    suspend fun checkAndSendComplaintReminders(boardingHouseId: String): Result<Int>
 }

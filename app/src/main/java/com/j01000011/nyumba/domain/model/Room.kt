@@ -1,5 +1,7 @@
 package com.j01000011.nyumba.domain.model
 
+import com.google.firebase.firestore.Exclude
+
 data class Room(
     val roomId: String = "",
     val boardingHouseId: String = "",
@@ -13,6 +15,7 @@ data class Room(
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()
 ) {
+    @get:Exclude
     val availableCount: Int get() = capacity - occupiedCount - heldCount
 }
 

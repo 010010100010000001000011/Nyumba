@@ -135,9 +135,10 @@ class ComplaintRepositoryImpl @Inject constructor(
         Result.failure(e)
     }
 
-    override suspend fun checkAndSendComplaintReminders(): Result<Int> = try {
+    override suspend fun checkAndSendComplaintReminders(boardingHouseId: String): Result<Int> = try {
         val now = System.currentTimeMillis()
         val pendingComplaints = firestore.collection("complaints")
+            .whereEqualTo("boardingHouseId", boardingHouseId)
             .whereEqualTo("status", ComplaintStatus.PENDING.name)
             .get().await().toObjects(Complaint::class.java)
 
