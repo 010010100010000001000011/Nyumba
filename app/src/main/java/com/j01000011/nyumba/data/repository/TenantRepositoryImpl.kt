@@ -3,6 +3,8 @@ package com.j01000011.nyumba.data.repository
 import com.google.firebase.firestore.FirebaseFirestore
 import com.j01000011.nyumba.domain.model.*
 import com.j01000011.nyumba.domain.repository.AuditRepository
+import com.j01000011.nyumba.domain.repository.RentRepository
+import com.j01000011.nyumba.domain.util.RentSchedule
 import com.j01000011.nyumba.domain.repository.TenantRepository
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -14,7 +16,8 @@ import javax.inject.Singleton
 @Singleton
 class TenantRepositoryImpl @Inject constructor(
     firestore: FirebaseFirestore,
-    private val auditRepository: AuditRepository
+    private val auditRepository: AuditRepository,
+    private val rentRepository: RentRepository
 ) : BaseRepository(firestore), TenantRepository {
 
     override fun getTenants(boardingHouseId: String): Flow<List<User>> = callbackFlow {
@@ -46,11 +49,13 @@ class TenantRepositoryImpl @Inject constructor(
         monthlyRent: Double,
         dueDay: Int
     ): Result<Unit> = try {
-        firestore.collection("users").document(tenantId)
-            .update(
-                "monthlyRent", monthlyRent,
-                "paymentDueDay", dueDay
-            ).await()
+        val day = dueDay.coerceIn(1, RentSchedule.MAX_DUE_DAY)
+        val userRef = firestore.collection("users").document(tenantId)
+        userRef.update("monthlyRent", monthlyRent, "paymentDueDay", day).await()
+        val houseId = userRef.get().await().getString("boardingHouseId")
+        if (houseId != null) {
+            rentRepository.rescheduleFuturePeriods(tenantId, houseId, monthlyRent, day).getOrThrow()
+        }
         Result.success(Unit)
     } catch (e: Exception) {
         Result.failure(e)

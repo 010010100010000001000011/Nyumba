@@ -107,25 +107,48 @@ service cloud.firestore {
       allow delete: if ownsHouse(houseId);
     }
 
+    function requestPath(requestId) {
+      return /databases/$(database)/documents/roomRequests/$(requestId);
+    }
+
+    function isTenantHoldChange(roomId) {
+      let reqId = request.resource.data.get('lastRequestId', '');
+      let after = getAfter(requestPath(reqId)).data;
+      return isSignedIn()
+        && reqId is string && reqId != ''
+        && changedOnly(['heldCount', 'updatedAt', 'lastRequestId'])
+        && after.tenantId == request.auth.uid
+        && after.roomId == roomId
+        && (
+          // placing a hold: the request is new and HOLDING
+          (request.resource.data.heldCount == resource.data.heldCount + 1
+            && !exists(requestPath(reqId)) && after.status == 'HOLDING')
+          // releasing a hold: the request goes HOLDING -> EXPIRED
+          || (request.resource.data.heldCount == resource.data.heldCount - 1
+            && get(requestPath(reqId)).data.status == 'HOLDING' && after.status == 'EXPIRED')
+        );
+    }
+
     // Rooms
     match /rooms/{roomId} {
       allow read: if isSignedIn();
       allow create: if ownsHouse(request.resource.data.boardingHouseId);
       allow update: if (ownsHouse(resource.data.boardingHouseId) && unchanged('boardingHouseId'))
-        // Tenants placing/releasing a hold may only move heldCount by one.
-        || (isSignedIn()
-          && changedOnly(['heldCount', 'updatedAt'])
-          && (request.resource.data.heldCount == resource.data.heldCount + 1
-              || request.resource.data.heldCount == resource.data.heldCount - 1));
+        // Tenants may move heldCount by one only together with their own hold request
+        // (named in lastRequestId) being created or expired in the same transaction.
+        || isTenantHoldChange(roomId);
       allow delete: if ownsHouse(resource.data.boardingHouseId);
     }
 
     // Room Requests
     match /roomRequests/{requestId} {
       allow read: if tenantOrLandlord(resource.data);
+      // A HOLDING request must reserve its bed in the same transaction (room.lastRequestId == this id)
       allow create: if isSignedIn()
         && request.resource.data.tenantId == request.auth.uid
-        && request.resource.data.status in ['PENDING', 'HOLDING'];
+        && (request.resource.data.status == 'PENDING'
+          || (request.resource.data.status == 'HOLDING'
+            && getAfter(/databases/$(database)/documents/rooms/$(request.resource.data.roomId)).data.get('lastRequestId', '') == requestId));
       allow update: if (ownsHouse(resource.data.boardingHouseId) && unchanged('boardingHouseId'))
         // Tenants may only expire their own lapsed holds.
         || (isSignedIn()

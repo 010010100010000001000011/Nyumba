@@ -31,8 +31,16 @@ class AuthViewModel @Inject constructor(
         viewModelScope.launch {
             authRepository.currentUser.collect { user ->
                 if (user != null) {
-                    val profileResult = authRepository.getProfile(user.uid)
-                    _currentUser.value = profileResult.getOrNull() ?: user
+                    // Right after registration the profile document may not exist yet; retry briefly and
+                    // never overwrite a profile that register()/login() already set for this uid.
+                    var profile = authRepository.getProfile(user.uid).getOrNull()
+                    repeat(3) {
+                        if (profile == null && _currentUser.value?.uid != user.uid) {
+                            kotlinx.coroutines.delay(700)
+                            profile = authRepository.getProfile(user.uid).getOrNull()
+                        }
+                    }
+                    _currentUser.value = profile ?: _currentUser.value?.takeIf { it.uid == user.uid }
                 } else {
                     _currentUser.value = null
                 }

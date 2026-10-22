@@ -6,6 +6,7 @@ import com.j01000011.nyumba.domain.repository.RoomRepository
 import com.j01000011.nyumba.domain.repository.NotificationRepository
 import com.j01000011.nyumba.domain.repository.RentRepository
 import com.j01000011.nyumba.domain.repository.AuditRepository
+import com.j01000011.nyumba.domain.util.RoomCapacity
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -138,12 +139,20 @@ class RoomRepositoryImpl @Inject constructor(
         holdDurationMs: Long
     ): Result<String> {
         return try {
+            val tenant = firestore.collection("users").document(tenantId).get().await().toObject(User::class.java)
+            if (tenant?.currentRoomId != null) throw Exception("You already have a room. Move out before requesting another.")
+            val active = firestore.collection("roomRequests")
+                .whereEqualTo("tenantId", tenantId)
+                .whereIn("status", listOf(RoomRequestStatus.PENDING.name, RoomRequestStatus.HOLDING.name))
+                .get().await()
+            if (!active.isEmpty) throw Exception("You already have a pending room request. Wait for a decision or let it expire.")
+
             val result = firestore.runTransaction { transaction ->
                 val roomRef = firestore.collection("rooms").document(roomId)
                 val roomSnapshot = transaction.get(roomRef)
                 val room = roomSnapshot.toObject(Room::class.java) ?: throw Exception("Room not found")
 
-                if (room.occupiedCount + room.heldCount >= room.capacity) {
+                if (room.status != RoomStatus.AVAILABLE || RoomCapacity.freeBeds(room.capacity, room.occupiedCount, room.heldCount) <= 0) {
                     throw Exception("No space available in this room (fully occupied or held)")
                 }
 
@@ -161,7 +170,8 @@ class RoomRepositoryImpl @Inject constructor(
                 )
                 
                 transaction.set(requestRef, newRequest)
-                transaction.update(roomRef, "heldCount", room.heldCount + 1, "updatedAt", System.currentTimeMillis())
+                // lastRequestId lets the security rules verify this increment matches a new hold
+                transaction.update(roomRef, "heldCount", room.heldCount + 1, "updatedAt", System.currentTimeMillis(), "lastRequestId", requestRef.id)
                 requestRef.id
             }.await()
 
@@ -246,8 +256,8 @@ class RoomRepositoryImpl @Inject constructor(
                 val roomSnapshot = transaction.get(roomRef)
                 val room = roomSnapshot.toObject(Room::class.java) ?: throw Exception("Room not found")
 
-                if (room.occupiedCount >= room.capacity) {
-                    throw Exception("Room is already at full capacity")
+                if (!RoomCapacity.canApprove(room.capacity, room.occupiedCount, room.heldCount, request.status == RoomRequestStatus.HOLDING)) {
+                    throw Exception("Room is full (all beds are occupied or held by other tenants)")
                 }
 
                 val houseRef = firestore.collection("boardingHouses").document(request.boardingHouseId)
@@ -256,7 +266,7 @@ class RoomRepositoryImpl @Inject constructor(
 
                 val newOccupiedCount = room.occupiedCount + 1
                 val newHeldCount = if (request.status == RoomRequestStatus.HOLDING) maxOf(0, room.heldCount - 1) else room.heldCount
-                val newStatus = if (newOccupiedCount >= room.capacity) RoomStatus.FULL else RoomStatus.AVAILABLE
+                val newStatus = RoomCapacity.statusAfterChange(room.status, newOccupiedCount, room.capacity)
 
                 transaction.update(roomRef, 
                     "occupiedCount", newOccupiedCount, 
@@ -280,9 +290,8 @@ class RoomRepositoryImpl @Inject constructor(
 
             val userSnapshot = firestore.collection("users").document(roomRequest.tenantId).get().await()
             val user = userSnapshot.toObject(User::class.java)
-            if (user != null) {
-                rentRepository.generateInitialRentPeriods(user)
-            }
+            val scheduleResult = user?.let { rentRepository.generateInitialRentPeriods(it) }
+                ?: Result.failure(Exception("Tenant profile not found"))
 
             notificationRepository.sendNotification(
                 Notification(
@@ -302,6 +311,9 @@ class RoomRepositoryImpl @Inject constructor(
                 metadata = mapOf("tenantId" to roomRequest.tenantId, "roomId" to roomRequest.roomId)
             ))
 
+            scheduleResult.exceptionOrNull()?.let {
+                throw Exception("Room approved, but the rent schedule could not be created: ${it.message}")
+            }
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -336,7 +348,10 @@ class RoomRepositoryImpl @Inject constructor(
                     val room = transaction.get(roomRef).toObject(Room::class.java) ?: throw Exception("Room not found")
                     
                     transaction.update(doc.reference, "status", RoomRequestStatus.EXPIRED.name, "updatedAt", now)
-                    transaction.update(roomRef, "heldCount", maxOf(0, room.heldCount - 1), "updatedAt", now)
+                    // lastRequestId lets the security rules verify this decrement matches an expiring hold
+                    if (room.heldCount > 0) {
+                        transaction.update(roomRef, "heldCount", room.heldCount - 1, "updatedAt", now, "lastRequestId", doc.id)
+                    }
                     true
                 }.await()
                 if (expired) updatedCount++
@@ -350,31 +365,42 @@ class RoomRepositoryImpl @Inject constructor(
 
     override suspend fun changeTenantRoom(tenantId: String, oldRoomId: String?, newRoomId: String): Result<Unit> {
         return try {
-            firestore.runTransaction { transaction ->
-                if (oldRoomId != null) {
-                    val oldRoomRef = firestore.collection("rooms").document(oldRoomId)
-                    val oldRoom = transaction.get(oldRoomRef).toObject(Room::class.java) ?: throw Exception("Old room not found")
-                    val newCount = maxOf(0, oldRoom.occupiedCount - 1)
-                    transaction.update(oldRoomRef, "occupiedCount", newCount, "status", RoomStatus.AVAILABLE.name, "updatedAt", System.currentTimeMillis())
-                }
-
+            if (oldRoomId == newRoomId) throw Exception("The tenant is already in this room")
+            val now = System.currentTimeMillis()
+            val tenant = firestore.runTransaction { transaction ->
+                // All reads first (Firestore transactions require reads before writes)
+                val userRef = firestore.collection("users").document(tenantId)
+                val user = transaction.get(userRef).toObject(User::class.java) ?: throw Exception("Tenant not found")
+                val oldRoomRef = oldRoomId?.let { firestore.collection("rooms").document(it) }
+                val oldRoom = oldRoomRef?.let { transaction.get(it).toObject(Room::class.java) }
                 val newRoomRef = firestore.collection("rooms").document(newRoomId)
                 val newRoom = transaction.get(newRoomRef).toObject(Room::class.java) ?: throw Exception("New room not found")
-                if (newRoom.occupiedCount + newRoom.heldCount >= newRoom.capacity) {
-                    throw Exception("New room is already at full capacity")
-                }
-                val newOccupiedCount = newRoom.occupiedCount + 1
-                val newStatus = if (newOccupiedCount >= newRoom.capacity) RoomStatus.FULL else RoomStatus.AVAILABLE
-                transaction.update(newRoomRef, "occupiedCount", newOccupiedCount, "status", newStatus.name, "updatedAt", System.currentTimeMillis())
 
-                val userRef = firestore.collection("users").document(tenantId)
-                transaction.update(userRef, 
-                    "currentRoomId", newRoomId,
-                    "monthlyRent", newRoom.monthlyRent
+                if (newRoom.boardingHouseId != user.boardingHouseId) throw Exception("The new room is in a different boarding house")
+                if (newRoom.status != RoomStatus.AVAILABLE || RoomCapacity.freeBeds(newRoom.capacity, newRoom.occupiedCount, newRoom.heldCount) <= 0) {
+                    throw Exception("The new room has no free bed")
+                }
+
+                if (oldRoomRef != null && oldRoom != null) {
+                    val oldCount = maxOf(0, oldRoom.occupiedCount - 1)
+                    transaction.update(oldRoomRef,
+                        "occupiedCount", oldCount,
+                        "status", RoomCapacity.statusAfterChange(oldRoom.status, oldCount, oldRoom.capacity).name,
+                        "updatedAt", now
+                    )
+                }
+                val newCount = newRoom.occupiedCount + 1
+                transaction.update(newRoomRef,
+                    "occupiedCount", newCount,
+                    "status", RoomCapacity.statusAfterChange(newRoom.status, newCount, newRoom.capacity).name,
+                    "updatedAt", now
                 )
-                
-                null
+                transaction.update(userRef, "currentRoomId", newRoomId, "monthlyRent", newRoom.monthlyRent)
+                user.copy(currentRoomId = newRoomId, monthlyRent = newRoom.monthlyRent)
             }.await()
+
+            // L8: future months follow the new room's rent
+            rentRepository.rescheduleFuturePeriods(tenantId, tenant.boardingHouseId ?: "", tenant.monthlyRent, tenant.paymentDueDay)
 
             auditRepository.recordLog(AuditLog(
                 action = "ROOM_CHANGED",

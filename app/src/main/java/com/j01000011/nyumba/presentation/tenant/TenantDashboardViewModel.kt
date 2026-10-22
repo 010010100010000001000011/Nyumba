@@ -39,26 +39,7 @@ class TenantDashboardViewModel @Inject constructor(
                 rentRepository.getRentPeriods(user.uid),
                 roomRepository.getTenantRequests(user.uid)
             ) { periods, requests ->
-                val now = System.currentTimeMillis()
-                val sortedPeriods = periods.sortedWith(compareBy({ it.year }, { it.month }))
-                
-                val current = sortedPeriods.find { it.dueDate <= now && it.status != RentStatus.PAID && it.status != RentStatus.ADVANCE_PAID } 
-                    ?: sortedPeriods.firstOrNull { it.status == RentStatus.UNPAID || it.status == RentStatus.PARTIALLY_PAID || it.status == RentStatus.OVERDUE }
-
-                val currentOrPastPeriods = sortedPeriods.filter { it.isCurrentOrPastDue }
-                val outstanding = currentOrPastPeriods.sumOf { maxOf(0.0, it.amountDue - it.amountPaid) }
-                val advanceCount = sortedPeriods.count { it.status == RentStatus.ADVANCE_PAID }
-                val nextUnpaid = sortedPeriods.firstOrNull { it.status == RentStatus.UNPAID || it.status == RentStatus.PARTIALLY_PAID }
-                
-                TenantDashboardStats(
-                    currentPeriod = current,
-                    totalPaid = sortedPeriods.sumOf { p -> p.amountPaid },
-                    outstandingBalance = outstanding,
-                    advancePeriodsCovered = advanceCount,
-                    nextDueDate = nextUnpaid?.dueDate,
-                    nextDueStatus = nextUnpaid?.status,
-                    requests = requests
-                )
+                buildTenantStats(periods, requests, System.currentTimeMillis())
             }.collect { newStats ->
                 _stats.update { it.copy(
                     currentPeriod = newStats.currentPeriod,
@@ -83,4 +64,25 @@ class TenantDashboardViewModel @Inject constructor(
             }
         }
     }
+}
+
+/**
+ * Pure dashboard numbers. "Next due" is the oldest period still owing anything (overdue first),
+ * so an overdue month is surfaced instead of being skipped.
+ */
+internal fun buildTenantStats(periods: List<RentPeriod>, requests: List<RoomRequest>, now: Long): TenantDashboardStats {
+    val sorted = periods.sortedWith(compareBy({ it.year }, { it.month }))
+    val owing = sorted.filter {
+        it.status == RentStatus.OVERDUE || it.status == RentStatus.UNPAID || it.status == RentStatus.PARTIALLY_PAID
+    }
+    val nextDue = owing.firstOrNull()
+    return TenantDashboardStats(
+        currentPeriod = owing.firstOrNull { it.dueDate <= now } ?: nextDue,
+        totalPaid = sorted.sumOf { it.amountPaid },
+        outstandingBalance = com.j01000011.nyumba.domain.util.RentAllocationEngine.dueBalance(sorted, now),
+        advancePeriodsCovered = sorted.count { it.status == RentStatus.ADVANCE_PAID },
+        nextDueDate = nextDue?.dueDate,
+        nextDueStatus = nextDue?.status,
+        requests = requests.sortedByDescending { it.createdAt }
+    )
 }

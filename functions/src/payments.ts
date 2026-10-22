@@ -3,7 +3,7 @@ import { HttpsError, onCall, onRequest } from "firebase-functions/v2/https";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import * as logger from "firebase-functions/logger";
 import { randomBytes } from "node:crypto";
-import { allocatePayment, outstanding, RentPeriodDoc } from "./allocation";
+import { allocatePayment, dueBalance, isSettled, RentPeriodDoc, scheduleBalance } from "./allocation";
 import {
   getTransactionStatus,
   LIPILA_API_KEY,
@@ -79,6 +79,20 @@ export const initiateLipilaPayment = onCall(
     const houseSnap = await db().collection("boardingHouses").doc(user.boardingHouseId).get();
     const landlordId = houseSnap.get("landlordId") as string | undefined;
     if (!landlordId) throw new HttpsError("failed-precondition", "Your boarding house could not be found.");
+
+    const periodsSnap = await db()
+      .collection("rentPeriods")
+      .where("tenantId", "==", uid)
+      .where("boardingHouseId", "==", user.boardingHouseId)
+      .get();
+    const owing = periodsSnap.docs.map((d) => d.data() as RentPeriodDoc).filter((p) => !isSettled(p.status));
+    const maxPayable = scheduleBalance(owing);
+    if (maxPayable <= 0) {
+      throw new HttpsError("failed-precondition", "You have no unpaid rent right now.");
+    }
+    if (amount > maxPayable) {
+      throw new HttpsError("invalid-argument", `The most you can pay is ${kwacha(maxPayable)} (your remaining rent schedule).`);
+    }
 
     const now = Date.now();
     const intent: PaymentIntent = {
@@ -227,9 +241,9 @@ async function recordSuccessfulPayment(tx: Transaction, intent: PaymentIntent): 
 
   const unpaid: RentPeriodDoc[] = periodsSnap.docs
     .map((d) => ({ ...(d.data() as RentPeriodDoc), periodId: d.id }))
-    .filter((p) => p.status !== "PAID");
-  const previousBalance = outstanding(unpaid);
-  const allocation = allocatePayment(intent.amount, unpaid);
+    .filter((p) => !isSettled(p.status));
+  const previousBalance = dueBalance(unpaid, now);
+  const allocation = allocatePayment(intent.amount, unpaid, now);
 
   const paymentRef = firestore.collection("payments").doc();
   const receiptRef = firestore.collection("receipts").doc();
@@ -259,7 +273,7 @@ async function recordSuccessfulPayment(tx: Transaction, intent: PaymentIntent): 
     });
   }
 
-  const remainingBalance = outstanding(allocation.periods);
+  const remainingBalance = dueBalance(allocation.periods, now);
   tx.set(receiptRef, {
     receiptId: receiptRef.id,
     receiptNumber: `REC-${Math.floor(now / 1000)}`,
@@ -273,7 +287,7 @@ async function recordSuccessfulPayment(tx: Transaction, intent: PaymentIntent): 
     amountPaid: intent.amount,
     previousBalance,
     remainingBalance,
-    advanceCoverage: 0,
+    advanceCoverage: allocation.advanceMonths,
     paymentMethod: "MOBILE_MONEY",
     transactionId: intent.lipilaIdentifier ?? intent.referenceId,
     paymentDate: now,

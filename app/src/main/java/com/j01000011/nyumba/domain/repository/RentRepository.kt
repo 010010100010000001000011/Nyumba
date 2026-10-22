@@ -13,4 +13,9 @@ interface RentRepository {
     suspend fun recordPayment(payment: Payment): Result<Unit>
     suspend fun generateInitialRentPeriods(tenant: User): Result<Unit>
     suspend fun checkAndSendRentReminders(tenantId: String): Result<Int>
+    /**
+     * Re-prices and re-dates the tenant's untouched future periods (nothing paid yet) after
+     * their rent or due day changes, so the schedule matches the new terms.
+     */
+    suspend fun rescheduleFuturePeriods(tenantId: String, boardingHouseId: String, monthlyRent: Double, dueDay: Int): Result<Int>
 }

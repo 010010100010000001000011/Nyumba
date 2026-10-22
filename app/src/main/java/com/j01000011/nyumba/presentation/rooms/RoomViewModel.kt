@@ -133,7 +133,7 @@ class RoomViewModel @Inject constructor(
     fun updateRoomCapacity(room: Room, newCapacity: Int) {
         if (newCapacity < room.occupiedCount) return 
         viewModelScope.launch {
-            val updatedStatus = if (room.occupiedCount >= newCapacity) RoomStatus.FULL else RoomStatus.AVAILABLE
+            val updatedStatus = com.j01000011.nyumba.domain.util.RoomCapacity.statusAfterChange(room.status, room.occupiedCount, newCapacity)
             val updatedRoom = room.copy(capacity = newCapacity, status = updatedStatus)
             roomRepository.updateRoom(updatedRoom)
         }

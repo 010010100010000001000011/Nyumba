@@ -9,14 +9,18 @@
     "build": "tsc",
     "test": "tsc && node --test \"lib/**/*.test.js\"",
     "serve": "npm run build && firebase emulators:start --only functions,firestore",
-    "deploy": "firebase deploy --only functions"
+    "deploy": "firebase deploy --only functions",
+    "test:emulator": "tsc && firebase emulators:exec --only firestore --project demo-nyumba \"node --test --test-concurrency=1 lib/emulator/rules.emu.js lib/emulator/payments.emu.js\""
   },
   "dependencies": {
     "firebase-admin": "^13.4.0",
     "firebase-functions": "^6.4.0"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^6.0.0",
     "@types/node": "^22.15.0",
+    "firebase": "^13.1.0",
+    "firebase-tools": "^15.34.1",
     "typescript": "^5.8.3"
   }
 }
